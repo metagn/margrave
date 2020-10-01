@@ -124,4 +124,4 @@ when isMainModule:
     <td><a href="/contact">Contact</a></td>
   </tr>
 </tbody></table> oooh"""
-  echo parseXml(text, text.find('<'))
+  #echo parseXml(text, text.find('<'))

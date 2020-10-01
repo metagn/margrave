@@ -1,4 +1,4 @@
-import strutils, marggers/singlexml
+import strutils, marggerspkg/singlexml
 
 when defined(js):
   type mstring = cstring
@@ -503,3 +503,7 @@ proc parseMarggers*(text: mstring): seq[MarggersElement] =
     inc ti
   if not lastElement.isNil:
     result.add(lastElement)
+
+when isMainModule:
+  import os, strutils
+  echo parseMarggers(readFile(paramStr(1))).join("\n")
