@@ -1,7 +1,9 @@
 # marggers
 
 Dialect of markdown (that outputs to HTML) that I once made for a purpose that didn't work out.
-Tested for C backend, but JS backend only works in 1.3/1.4.
+Very fragile and sloppily put together. Only use if you really want to.
+
+Tested for C backend, but JS backend only works in Nim 1.3/1.4.
 
 ````markdown
 To escape use \\
