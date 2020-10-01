@@ -1,0 +1,31 @@
+## Website
+
+This is a website.
+
+These are links.
+
+#### Projects
+
+* Music: [Bong bong bong](/music/bong-bong-bong)
+* [Videos](/videos): My videos
+* [Software](/software#softy)
+* Whaatt???
+
+<table><tbody>
+  <tr>
+    <td><a href="/music">Music</a></td>
+    <td><a href="/videos">Videos</a></td>
+  </tr>
+  <tr>
+    <td><a href="/pieces">Pieces</a></td>
+    <td><a href="/series">Series</a></td>
+  </tr>
+  <tr>
+    <td><a href="/misc">Misc</a></td>
+  </tr>
+  <tr><td style="height:10vh"></td></tr>
+  <tr>
+    <td><a href="/about">About</a></td>
+    <td><a href="/contact">Contact</a></td>
+  </tr>
+</tbody></table>
