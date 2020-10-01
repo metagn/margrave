@@ -3,7 +3,7 @@
 Dialect of markdown (that outputs to HTML) that I once made for a purpose that didn't work out.
 Tested for C backend, but JS backend only works in 1.3/1.4.
 
-```markdown
+````markdown
 To escape use \\
 
 # Heading1
@@ -63,7 +63,7 @@ Inline HTML (no formatting inside): <table>
     </tr>
   </tbody>
 </table>
-```
+````
 
 Output:
 
