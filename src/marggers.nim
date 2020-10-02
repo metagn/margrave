@@ -1,12 +1,15 @@
+## Dialect of markdown.
+## Does not work for JS with Nim version 1.2.x and earlier.
+
 import strutils, marggerspkg/singlexml
 
 when defined(js):
   type mstring = cstring
   
-  proc toCstring(y: char): mstring {.importc: "String.fromCharCode".}
-  proc add(x: var mstring, y: char) =
+  proc toCstring(y: char): cstring {.importc: "String.fromCharCode".}
+  proc add(x: var cstring, y: char) =
     x.add(toCstring(y))
-  proc `[]`(c: mstring, ind: Slice[int]): mstring =
+  proc `[]`(c: cstring, ind: Slice[int]): cstring =
     {.emit: [result, " = ", c, ".substring(", ind.a, ", ", ind.b + 1, ")"].}
 else:
   type mstring = string
@@ -51,7 +54,8 @@ template add(elem: MarggersElement, cont: seq[MarggersElement]) =
 template add(elem: MarggersElement, str: mstring) =
   elem.content.add(newStr(str))
 
-proc `$`*(elem: MarggersElement): system.string =
+proc `$`*(elem: MarggersElement): string =
+  ## Outputs a marggers element as HTML.
   if elem.isText:
     result = $elem.str
   else:
@@ -73,6 +77,35 @@ proc `$`*(elem: MarggersElement): system.string =
       result.add("</")
       result.add(elem.tag)
       result.add('>')
+
+when defined(js):
+  proc toCstring*(elem: MarggersElement): cstring =
+    ## Outputs a marggers element as HTML as a cstring, but only in JS.
+    if elem.isText:
+      result = elem.str
+    else:
+      result.add('<')
+      result.add(elem.tag)
+      for (attrName, attrValue) in elem.attrs.items:
+        result.add(' ')
+        result.add(attrName)
+        if attrValue.len != 0:
+          result.add('=')
+          result.addQuoted(attrValue)
+      result.add('>')
+      for cont in elem.content:
+        result.add(cont.toCstring())
+      case elem.tag
+      of "br", "img", "input":
+        discard
+      else:
+        result.add("</")
+        result.add(elem.tag)
+        result.add('>')
+elif defined(nimdoc):
+  proc toCstring*(elem: MarggersElement): cstring =
+    ## Outputs a marggers element as HTML as a cstring, but only in JS.
+    discard
 
 proc skipWhitespaceUntilNewline(text: mstring, i: var int): bool =
   result = true
@@ -352,6 +385,9 @@ proc parseInline(text: mstring, ti: var int, doubleNewLine: static[bool] = true)
   parseDelimed(text, ti, "", doubleNewLine)[1]
 
 proc parseMarggers*(text: mstring): seq[MarggersElement] =
+  ## Parses a string (cstring for JS) of text in marggers and translates it to HTML line by line.
+  ## Result is a sequence of MarggersElements, to simply generate HTML with no need for readability
+  ## turn these all into strings with ``$`` and join them with "".
   var lastLineWasEmpty = true
   var lastElement: MarggersElement
   var ti = 0

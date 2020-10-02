@@ -1,3 +1,6 @@
+## Parses a single XML node using Nim's parsexml.
+## Works for JS in versions above 1.2.x.
+
 import parsexml, xmltree, streams, strtabs
 
 proc addNode(father, son: XmlNode) =
@@ -76,6 +79,9 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
   of xmlEof: discard
 
 proc parseXml*(text: string, i: int): (bool, int) =
+  ## Parse `text` starting with index `i` as a single XML node
+  ## and return a tuple with a boolean indicating success and
+  ## an integer indicating the index where the XML ends.
   var errors: seq[string]
   var x: XmlParser
   let stream = newStringStream(text)
@@ -98,30 +104,3 @@ proc parseXml*(text: string, i: int): (bool, int) =
       result[0] = false
       break
   result[1] = x.bufpos
-
-when isMainModule:
-  let text = """# gluggers
-
-<table><tbody>
-  <tr>
-    <td><a href="/music/retardcore">Music</a></td>
-    <td><a href="/videos">Videos</a></td>
-  </tr>
-  <tr>
-    <td><a href="/pieces">Pieces</a></td>
-    <td><a href="/series">Series</a></td>
-  </tr>
-  <tr>
-    <td><a href="/software">Software</a></td>
-    <td><a href="/games">Games</a></td>
-  </tr>
-  <tr>
-    <td><a href="/misc">Misc</a></td>
-  </tr>
-  <tr><td style="height:10vh"></td></tr>
-  <tr>
-    <td><a href="/about">About</a></td>
-    <td><a href="/contact">Contact</a></td>
-  </tr>
-</tbody></table> oooh"""
-  #echo parseXml(text, text.find('<'))

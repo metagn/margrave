@@ -7,7 +7,7 @@ To escape use \\
 ##### Heading5
 ###### Heading6
 
-####{heading-id} Heading (if you add #heading-id to the link it links to this)
+####{heading-id} Heading (new, makes heading-id the id of this heading)
 
 * Bullet points
 + Plus
@@ -16,12 +16,12 @@ To escape use \\
 1. Numbered list
 2. Can be
 4. Any number
-.  or dot
-   , can also indent
+.  or just a dot (new),
+   can also indent
 
 > Blockquotes
 >
-> can be **formatted** _lol_
+> can _be_ **formatted**
 
 ```
 Code blocks
@@ -34,26 +34,27 @@ Link: [text](url)
       [text **can have formatting**](url "tooltip text")
 Image: ![](url)
        ![alt text (image doesnt load)](url "tooltip text")
-Superscript: 4^(3) = 64
-Subscript: a[n] = 2n + 1
+Superscript (new): 4^(3) = 64
+Subscript (new): a[n] = 2n + 1
 Bold: **text**
 Underline: __text__
 italic: *text* _text_
 Strikethrough: ~~text~~
-Inline code (has formatting): `text`
-Checkboxes: [ ] [x]
-No formatting: {aaaa **aa**}
+Inline code (has formatting!): `text`
+Checkboxes anywhere in the document, not just lists: [ ] [x]
+No formatting with curly braces (new): {aaaa **aa**}
 Double curly acts as 1 curly: {{aaadooooo}}
+Code without formatting: {`_ * 3 + 3 * _ + 2 ** 2 ** 2`}
 
 Inline HTML (no formatting inside): <table>
   <tbody>
     <tr>
-      <td>aids 1</td>
-      <td>aids 2</td>
+      <td>a 1</td>
+      <td>a 2</td>
     </tr>
     <tr>
-      <td>aids 3</td>
-      <td>aids 4</td>
+      <td>b 1</td>
+      <td>b 2</td>
     </tr>
   </tbody>
 </table>
