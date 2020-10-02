@@ -147,7 +147,7 @@ proc parseCurly(text: mstring, ti: var int): MarggersElement =
       escaped = false
     inc ti
 
-template lenDelim(del: static[mstring]): int =
+template lenDelim(del: static[string]): int =
   when del is mstring:
     del.len
   else:
@@ -155,7 +155,7 @@ template lenDelim(del: static[mstring]): int =
 
 # todo: go through XML text and parse it as marggers
 
-proc parseDelimed(text: mstring, ti: var int, Delim: static[mstring], doubleNewLine: static[bool] = true): (bool, seq[MarggersElement]) =
+proc parseDelimed(text: mstring, ti: var int, Delim: static[string], doubleNewLine: static[bool] = true): (bool, seq[MarggersElement]) =
   var escaped = false
   var elems: seq[MarggersElement]
   elems.add(newStr(""))
@@ -168,13 +168,13 @@ proc parseDelimed(text: mstring, ti: var int, Delim: static[mstring], doubleNewL
       for i in ti..maxIndexAfter3:
         substrs[i - ti] = text[ti..i]
 
-      template check(s: static[mstring]): bool =
+      template check(s: static[string]): bool =
         when s.len == 0:
           false
         else:
           substrs[s.len - 1] == s and (matchLen = s.len; true)
 
-      template parse(tag: mstring, del: static[mstring]) =
+      template parse(tag: mstring, del: static[string]) =
         ti += matchLen
         let (finished, parsedElems) = parseDelimed(text, ti, del, doubleNewLine)
         if finished:
@@ -299,15 +299,13 @@ proc parseLink(text: mstring, ti: var int): tuple[finished: bool, url, tip: mstr
           result.url.add(')')
       else: result.url.add(text[ti])
     of 1:
-      if text[ti] in Whitespace:
-        discard
-      elif text[ti] in {'"', '\'', '<'}:
-        state = 2
-        delim = if text[ti] == '<': '>' else: text[ti]
-      elif text[ti] == ')':
-        result.finished = true
-        return
-      else: discard
+      if text[ti] notin Whitespace:
+        if text[ti] in {'"', '\'', '<'}:
+          state = 2
+          delim = if text[ti] == '<': '>' else: text[ti]
+        elif text[ti] == ')':
+          result.finished = true
+          return
     of 2:
       if not escaped:
         if text[ti] == '\\':
@@ -325,8 +323,6 @@ proc parseLink(text: mstring, ti: var int): tuple[finished: bool, url, tip: mstr
       if text[ti] == ')':
         result.finished = true
         return
-      else:
-        discard
     inc ti
   result.finished = false
 
