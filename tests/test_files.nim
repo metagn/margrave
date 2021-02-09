@@ -10,7 +10,7 @@ for (kind, inputFile) in walkDir("tests/files"):
     var testName = inputFile
     testName.removeSuffix(".mrg")
     if testName.len != inputFile.len:
-      test "Test file " & testName[12..^1]:
+      test "Test file " & testName["tests/files/".len .. ^1]:
         let input = joinedParse(readFile(inputFile)).splitLines
         let output = readFile(testName & ".html").splitLines
         check input == output

@@ -1,2 +1,3 @@
 *.js
 *.exe
+tests/files/*_real.html
