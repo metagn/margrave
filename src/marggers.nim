@@ -37,12 +37,20 @@ else:
   type NativeString = string
 
 type
+  KnownTags* = enum
+    noTag,
+    p, br,
+    h1, h2, h3, h4, h5, h6,
+    ul, ol, li, blockquote,
+    sup, sub, em, strong, pre, code, u, s,
+    img, input, a
+
   MarggersElement* = ref object
     case isText*: bool
     of true:
       str*: NativeString
     else:
-      tag*: NativeString
+      tag*: KnownTags
       attrs*: seq[(NativeString, NativeString)]
       content*: seq[MarggersElement]
   
@@ -51,11 +59,11 @@ type
     pos*: int
 
 proc newStr(s: NativeString): MarggersElement = MarggersElement(isText: true, str: s)
-proc newElem(tag: NativeString, content: seq[MarggersElement] = @[]): MarggersElement =
+proc newElem(tag: KnownTags, content: seq[MarggersElement] = @[]): MarggersElement =
   MarggersElement(isText: false, tag: tag, content: content)
 proc paragraphIfText(elem: MarggersElement): MarggersElement =
   if elem.isText:
-    MarggersElement(isText: false, tag: "p", content: @[elem])
+    MarggersElement(isText: false, tag: p, content: @[elem])
   else:
     elem
 
@@ -86,7 +94,7 @@ proc `$`*(elem: MarggersElement): string =
     result = $elem.str
   else:
     result.add('<')
-    result.add(elem.tag)
+    result.add($elem.tag)
     for (attrName, attrValue) in elem.attrs.items:
       result.add(' ')
       result.add(attrName)
@@ -96,12 +104,12 @@ proc `$`*(elem: MarggersElement): string =
     result.add('>')
     for cont in elem.content:
       result.add($cont)
-    case $elem.tag
-    of "br", "img", "input":
+    case elem.tag
+    of br, img, input:
       discard
     else:
       result.add("</")
-      result.add(elem.tag)
+      result.add($elem.tag)
       result.add('>')
 
 when defined(js) or defined(nimdoc):
@@ -111,7 +119,7 @@ when defined(js) or defined(nimdoc):
       result = elem.str
     else:
       result.add('<')
-      result.add(elem.tag)
+      result.add(cstring($elem.tag))
       for (attrName, attrValue) in elem.attrs.items:
         result.add(' ')
         result.add(attrName)
@@ -121,31 +129,78 @@ when defined(js) or defined(nimdoc):
       result.add('>')
       for cont in elem.content:
         result.add(cont.toCstring())
-      case $elem.tag
-      of "br", "img", "input":
+      case elem.tag
+      of br, img, input:
         discard
       else:
         result.add("</")
-        result.add(elem.tag)
+        result.add(cstring($elem.tag))
         result.add('>')
+
+template get(parser: MarggersParser, offset: int = 0): char =
+  parser.str[parser.pos + offset]
+
+template get(parser: MarggersParser, offset: int = 0, len: int): NativeString =
+  parser.str[parser.pos + offset ..< parser.pos + offset + len]
 
 iterator nextChars(parser: var MarggersParser): char =
   while parser.pos < parser.str.len:
-    yield parser.str[parser.pos]
+    yield parser.get()
     inc parser.pos
 
+proc peekMatch(parser: var MarggersParser, pat: set[char], offset: int = 0): bool {.inline.} =
+  parser.pos + offset < parser.str.len and parser.get(offset) in pat
+
+proc peekMatch(parser: var MarggersParser, pat: char, offset: int = 0): bool {.inline.} =
+  parser.pos + offset < parser.str.len and parser.get(offset) == pat
+
+proc peekMatch(parser: var MarggersParser, pat: string, offset: int = 0): bool {.inline.} =
+  parser.pos + offset + pat.len <= parser.str.len and parser.get(offset, pat.len) == pat
+
+proc nextMatch(parser: var MarggersParser, pat: set[char], offset: int = 0): bool =
+  result = peekMatch(parser, pat, offset)
+  if result: parser.pos += offset + 1
+
+proc nextMatch(parser: var MarggersParser, pat: char, offset: int = 0): bool =
+  result = peekMatch(parser, pat, offset)
+  if result: parser.pos += offset + 1
+
+proc nextMatch(parser: var MarggersParser, pat: string, offset: int = 0): bool =
+  result = peekMatch(parser, pat, offset)
+  if result: parser.pos += offset + pat.len
+
 proc skipWhitespaceUntilNewline(parser: var MarggersParser): bool =
-  result = true
-  for ch in parser.nextChars:
+  var i = 0
+  while parser.pos + i < parser.str.len:
+    let ch = parser.get(offset = i)
     case ch
     of '\n':
-      return
+      parser.pos += i
+      return true
     of Whitespace - {'\n'}:
       discard
     else:
       return false
+    inc i
 
-proc parseBracket(img: bool, parser: var MarggersParser, doubleNewLine: bool): MarggersElement
+import macros
+
+macro matchNext(parser: var MarggersParser, branches: varargs[untyped]) {.used.} =
+  result = newTree(nnkIfStmt)
+  for b in branches:
+    case b.kind
+    of nnkOfBranch:
+      var cond: NimNode = newCall(ident"nextMatch", parser, b[0])
+      let h = b.len - 1
+      for i in 1 ..< h:
+        cond = infix(cond, "or", newCall(ident"nextMatch", parser, b[i]))
+      result.add(newTree(nnkElifBranch, cond, b[h]))
+    of nnkElifBranch, nnkElse:
+      result.add(b)
+    else:
+      error("invalid branch for matchNext", b)
+
+proc parseBracket(image: bool, parser: var MarggersParser, doubleNewLine: bool): MarggersElement
 
 proc parseCurly(parser: var MarggersParser): MarggersElement =
   result = newStr("")
@@ -173,50 +228,65 @@ proc parseCurly(parser: var MarggersParser): MarggersElement =
       result.str.add(ch)
       escaped = false
 
-# todo: go through XML text and parse it as marggers
+proc parseCodeBlock(parser: var MarggersParser): MarggersElement =
+  result = newElem(pre, @[newStr("")])
+  while parser.nextMatch(Whitespace): discard
+  for ch in parser.nextChars:
+    if parser.nextMatch("```"):
+      dec parser.pos # idk?? helps newline?
+      return
+    else:
+      result[^1].str.add(
+        case ch
+        of '>': "&gt;"
+        of '<': "&lt;"
+        of '&': "&amp;"
+        else: $ch
+      )
 
-proc parseDelimed(parser: var MarggersParser, Delim: string, doubleNewLine: bool = true): (bool, seq[MarggersElement]) =
+proc parseDelimed(parser: var MarggersParser, delim: string, doubleNewLine: bool = true): (bool, seq[MarggersElement]) =
   var escaped = false
   var elems: seq[MarggersElement]
   elems.add(newStr(""))
   for ch in parser.nextChars:
     assert elems[^1].isText
     if not escaped:
-      var matchLen: int
-      let maxIndexAfter3 = min(parser.pos + 3, parser.str.len - 1)
-      var substrs: array[4, NativeString]
-      for i in parser.pos..maxIndexAfter3:
-        substrs[i - parser.pos] = parser.str[parser.pos..i]
+      const useSubstrs = false
+      let initialPos = parser.pos
 
-      template check(s: static[string]): bool =
-        when s.len == 0:
-          false
-        else:
+      when useSubstrs:
+        var matchLen: int
+        let maxIndexAfter3 = min(parser.pos + 3, parser.str.len - 1)
+        var substrs: array[4, NativeString]
+        for i in parser.pos..maxIndexAfter3:
+          substrs[i - parser.pos] = parser.str[parser.pos..i]
+
+        template check(s: string): bool =
           substrs[s.len - 1] == s and (matchLen = s.len; true)
 
-      template check(s: string): bool =
-        s.len != 0 and substrs[s.len - 1] == s and (matchLen = s.len; true)
+        template nextMatch(parser: var MarggersParser, pat: string): bool =
+          check(pat) and (parser.pos += matchLen; true)
 
-      proc parse(parser: var MarggersParser, tag: NativeString, del: string, dnl: bool): bool =
-        let (finished, parsedElems) = parseDelimed(parser, del, dnl)
+      proc parseAux(tag: KnownTags, del: string, parser: var MarggersParser#[
+        elems: var seq[MarggersElement], doubleNewLine: bool, initial: int]#): bool =
+        let currentPos = parser.pos
+        let (finished, parsedElems) = parseDelimed(parser, del, doubleNewLine)
         if finished:
           elems.add(newElem(tag, parsedElems))
-          elems.add(newStr(""))
           result = false
         else:
-          elems[^1].str.add(substrs[matchLen - 1])
+          elems[^1].str.add(parser.str[initialPos ..< currentPos])
           elems.add(parsedElems)
-          elems.add(newStr(""))
           result = true
+        elems.add(newStr(""))
 
-      template parse(tag: NativeString, del: string) =
-        parser.pos += matchLen
-        if parse(parser, tag, del, doubleNewLine):
+      template parse(tag: KnownTags, del: string) =
+        if parseAux(tag, del, parser, #[, elems, doubleNewLine, initialPos]#):
           return (true, elems)
 
-      proc bracket(image: bool, parser: var MarggersParser, dnl: bool): bool =
-        let elem = parseBracket(image, parser, dnl)
-        if elem.tag == "":
+      proc bracket(image: bool, parser: var MarggersParser): bool =
+        let elem = parseBracket(image, parser, doubleNewLine)
+        if elem.tag == noTag:
           elems[^1].str.add(if image: "![" else: "[")
           elems.add(elem.content)
           result = true
@@ -225,92 +295,97 @@ proc parseDelimed(parser: var MarggersParser, Delim: string, doubleNewLine: bool
           elems.add(newStr(""))
           result = false
 
-      if (doubleNewLine and (check("\r\n\r\n") or check("\n\n"))) or
-         (not doubleNewLine and (check("\r\n") or check("\n"))):
-        #[when]#if Delim.len == 0:
-          parser.pos += matchLen - 1
-        return (Delim.len == 0, elems)
-      elif check(Delim):
-        parser.pos += Delim.len - 1
+      matchNext parser:
+      elif delim.len != 0 and parser.nextMatch(delim):
+        # greedy ^
+        dec parser.pos
         return (true, elems)
-      elif check("  \r\n") or check("  \n"):
-        parser.pos += matchLen
-        elems.add(newElem("br"))
-        elems.add(newStr(""))
-      elif check("^("): parse("sup", ")")
-      elif check("**"): parse("strong", "**")
-      elif check("__"): parse("u", "__")
-      elif check("~~"): parse("s", "~~")
-      elif check("!["):
-        parser.pos += 2
-        if bracket(image = true, parser, doubleNewLine):
-          return (true, elems)
-      else:
-        matchLen = 1
-        let actualPos = parser.pos
-        case ch
-        of '{':
-          inc parser.pos
-          elems.add(parseCurly(parser))
-        of '[':
-          inc parser.pos
-          if bracket(image = false, parser, doubleNewLine):
-            return (true, elems)
-        of '`': parse("code", "`")
-        of '*': parse("em", "*")
-        of '_': parse("em", "_")
-        of '<':
-          let (change, pos) =
-            when noInlineHtml:
-              (false, 0)
-            else:
-              parseXml($parser.str, actualPos)
-          if change:
-            elems[^1].str.add(parser.str[actualPos ..< actualPos + pos])
-            parser.pos += pos - 1
-          else:
-            elems[^1].str.add("&lt;")
-        of '>':
-          elems[^1].str.add("&gt;")
-        of '&':
-          block ampBlock:
-            let firstChar = if actualPos > parser.str.len: ' ' else: parser.str[actualPos + 1]
-            inc parser.pos
-            if firstChar in Letters:
-              inc parser.pos, 2
-              for ch in parser.nextChars:
-                case ch
-                of Letters:
-                  discard
-                of ';':
-                  break
-                else:
-                  parser.pos = actualPos
-                  elems[^1].str.add("&amp;")
-                  break ampBlock
-              elems[^1].str.add(parser.str[actualPos..parser.pos])
-            elif firstChar == '#':
-              inc parser.pos, 2
-              for ch in parser.nextChars:
-                case ch
-                of Digits:
-                  discard
-                of ';':
-                  break
-                else:
-                  parser.pos = actualPos
-                  elems[^1].str.add("&amp;")
-                  break ampBlock
-              elems[^1].str.add(parser.str[actualPos..parser.pos])
-            else:
-              elems[^1].str.add("&amp;")
-        of '\\':
-          escaped = true
+      elif (doubleNewLine and (parser.nextMatch("\r\n\r\n") or parser.nextMatch("\n\n"))) or
+         (not doubleNewLine and (parser.nextMatch("\r\n") or parser.nextMatch("\n"))):
+        if not doubleNewLine and delim.len == 0:
+          dec parser.pos
         else:
-          elems[^1].str.add(ch)
+          parser.pos = initialPos # why do this
+        return (delim.len == 0, elems)
+      of "  \r\n", "  \n":
+        elems.add(newElem(br))
+        elems.add(newStr(""))
+      of "```":
+        elems.add(parseCodeBlock(parser))
+        elems.add(newStr(""))
+      of "^(": parse(sup, ")")
+      of "**": parse(strong, "**")
+      of "__": parse(u, "__")
+      of "~~": parse(s, "~~")
+      of "![":
+        if bracket(image = true, parser):
+          return (true, elems)
+      of '{':
+        elems.add(parseCurly(parser))
+      of '[':
+        if bracket(image = false, parser):
+          return (true, elems)
+      of '`': parse(code, "`")
+      of '*': parse(em, "*")
+      of '_': parse(em, "_")
+      of '<':
+        dec parser.pos
+        let (change, pos) =
+          when noInlineHtml:
+            (false, 0)
+          else:
+            parseXml($parser.str, parser.pos)
+        if change:
+          elems[^1].str.add(parser.str[parser.pos ..< parser.pos + pos])
+          parser.pos += pos - 1
+        else:
+          elems[^1].str.add("&lt;")
+      of '>':
+        dec parser.pos
+        elems[^1].str.add("&gt;")
+      of '&':
+        dec parser.pos
+        block ampBlock:
+          let firstChar = if parser.pos > parser.str.len: ' ' else: parser.str[parser.pos + 1]
+          inc parser.pos
+          if firstChar in Letters:
+            inc parser.pos, 2
+            for ch in parser.nextChars:
+              case ch
+              of Letters:
+                discard
+              of ';':
+                break
+              else:
+                parser.pos = initialPos
+                elems[^1].str.add("&amp;")
+                break ampBlock
+            elems[^1].str.add(parser.str[initialPos .. parser.pos])
+          elif firstChar == '#':
+            inc parser.pos, 2
+            for ch in parser.nextChars:
+              case ch
+              of Digits:
+                discard
+              of ';':
+                break
+              else:
+                parser.pos = initialPos
+                elems[^1].str.add("&amp;")
+                break ampBlock
+            elems[^1].str.add(parser.str[initialPos .. parser.pos])
+          else:
+            elems[^1].str.add("&amp;")
+      of '\\':
+        dec parser.pos
+        escaped = true
+      else:
+        elems[^1].str.add(ch)
     else:
       elems[^1].str.add(ch)
       escaped = false
+    if not elems[^1].isText:
+      elems.add(newStr(""))
   result = (false, elems)
 
 proc parseLink(parser: var MarggersParser): tuple[finished: bool, url, tip: string] =
@@ -363,34 +438,34 @@ proc parseLink(parser: var MarggersParser): tuple[finished: bool, url, tip: stri
         return
   result.finished = false
 
-proc parseBracket(img: bool, parser: var MarggersParser, doubleNewLine: bool): MarggersElement =
-  var firstTi = parser.pos
+proc parseBracket(image: bool, parser: var MarggersParser, doubleNewLine: bool): MarggersElement =
+  let firstPos = parser.pos
   let (titleWorked, titleElems) = parseDelimed(parser, "]", doubleNewLine)
   inc parser.pos
-  var secondTi = parser.pos - 2
+  let secondPos = parser.pos - 2
   if not titleWorked:
-    return newElem("", titleElems)
+    return newElem(noTag, titleElems)
   let checkMark =
-    if not img and titleElems.len == 1 and titleElems[0].isText and titleElems[0].str.len == 1:
+    if not image and titleElems.len == 1 and titleElems[0].isText and titleElems[0].str.len == 1:
       case titleElems[0].str[0]
       of ' ': 1
       of 'x': 2
       else: 0
     else: 0
   if parser.pos < parser.str.len:
-    if parser.str[parser.pos] == '(':
+    if parser.get() == '(':
       let oldPos = parser.pos
       inc parser.pos
       let (linkWorked, link, tip) = parseLink(parser)
       if linkWorked:
         let elem = MarggersElement(isText: false)
-        if img:
-          elem.tag = "img"
+        if image:
+          elem.tag = img
           elem.attrs.add((NativeString"src", NativeString link))
-          if secondTi - firstTi > 0:
-            elem.attrs.add((NativeString"alt", parser.str[firstTi..secondTi]))
+          if secondPos - firstPos > 0:
+            elem.attrs.add((NativeString"alt", parser.str[firstPos..secondPos]))
         else:
-          elem.tag = "a"
+          elem.tag = a
           elem.content = titleElems
           elem.attrs.add((NativeString"href",
             if link.len == 0 and titleElems.len == 1 and titleElems[0].isText:
@@ -404,12 +479,12 @@ proc parseBracket(img: bool, parser: var MarggersParser, doubleNewLine: bool): M
         parser.pos = oldPos
     else:
       dec parser.pos
-  if img:
-    result = newElem("", titleElems)
+  if image:
+    result = newElem(noTag, titleElems)
   elif checkMark == 0:
-    result = newElem("sub", titleElems)
+    result = newElem(sub, titleElems)
   else:
-    let elem = newElem("input")
+    let elem = newElem(input)
     elem.attrs.add((NativeString"type", NativeString"checkbox"))
     elem.attrs.add((NativeString"disabled", NativeString""))
     if checkMark == 2:
@@ -426,39 +501,37 @@ proc parseMarggers*(text: NativeString): seq[MarggersElement] =
   var lastLineWasEmpty = true
   var lastElement: MarggersElement
   var parser = MarggersParser(str: text, pos: 0)
+  template add(elem: MarggersElement) =
+    result.add(elem)
+    lastElement = nil
   for firstCh in parser.nextChars:
     if firstCh in {'\r', '\n'}:
       lastLineWasEmpty = true
       if not lastElement.isNil:
-        result.add(paragraphIfText(lastElement))
-        lastElement = nil
+        add(paragraphIfText(lastElement))
     elif not lastElement.isNil:
       assert not lastElement.isText
-      case $lastElement.tag
-      of "ul":
-        if parser.pos + 1 < parser.str.len and text[parser.pos + 1] in Whitespace:
-          inc parser.pos, 2
-          let item = newElem("li")
+      case lastElement.tag
+      of ul:
+        if parser.nextMatch(Whitespace, offset = 1):
+          let item = newElem(li)
           item.content = parseInline(parser, doubleNewLine = false)
           lastElement.add(item)
         else:
           lastElement[^1].add("\n")
-          lastElement[^1].add(parseInline(parser, false))
-      of "ol":
+          lastElement[^1].add(parseInline(parser, doubleNewLine = false))
+      of ol:
         var i = 0
-        while i < text.len:
-          if text[parser.pos + i] in Digits:
-            inc i
-          else: break
-        if text.len > parser.pos + i + 1 and text[parser.pos + i] == '.':
+        while parser.peekMatch(Digits, offset = i): inc i
+        if parser.pos + i + 1 < parser.str.len and parser.peekMatch('.', offset = i):
           parser.pos += i + 1
-          let item = newElem("li")
+          let item = newElem(li)
           item.content = parseInline(parser, doubleNewLine = false)
           lastElement.add(item)
         else:
           lastElement[^1].add("\n ")
-          lastElement[^1].add(parseInline(parser, false))
-      of "blockquote":
+          lastElement[^1].add(parseInline(parser, doubleNewLine = false))
+      of blockquote:
         if firstCh == '>': inc parser.pos
         let rem = skipWhitespaceUntilNewline(parser)
         if rem:
@@ -466,108 +539,75 @@ proc parseMarggers*(text: NativeString): seq[MarggersElement] =
             lastElement[^1] = lastElement[^1].paragraphIfText
             lastElement.add("\n")
             if text[parser.pos - 1] == ' ' and text[parser.pos - 2] == ' ':
-              lastElement.add(newElem("br"))
+              lastElement.add(newElem(br))
           else:
             lastElement[^1] = lastElement[^1].paragraphIfText
             result.add(lastElement)
             if text[parser.pos - 1] == ' ' and text[parser.pos - 2] == ' ':
-              result.add(newElem("br"))
+              result.add(newElem(br))
         elif lastElement[^1].isText:
           lastElement.add("\n")
-          lastElement.add(newElem("p", parseInline(parser, doubleNewLine = false)))
+          lastElement.add(newElem(p, parseInline(parser, doubleNewLine = false)))
         elif firstCh == ' ':
           lastElement[^1].add("\n ")
-          lastElement[^1].add(parseInline(parser, false))
+          lastElement[^1].add(parseInline(parser, doubleNewLine = false))
         else:
           lastElement[^1].add("\n")
           lastElement[^1].add(parseInline(parser, doubleNewLine = false))
       else:
-        result.add(paragraphIfText(lastElement))
-        lastElement = nil
+        add(paragraphIfText(lastElement))
         dec parser.pos
     else:
       case firstCh
       of ' ':
         if result.len != 0 and not result[^1].isText and
-           result[^1].tag in [NativeString"ol", NativeString"ul", NativeString"blockquote"] and
+           result[^1].tag in {ol, ul, blockquote} and
            result[^1].content.len != 0:
           result[^1][^1].add("\n ")
-          result[^1][^1].add(parseInline(parser))
+          result[^1][^1].add(parseInline(parser, doubleNewLine = true))
         else:
-          lastElement = newElem("p", parseInline(parser, false))
+          lastElement = newElem(p, parseInline(parser, doubleNewLine = false))
       of '#':
         var level = 1
-        while level < 7:
-          if text[parser.pos + level] == '#':
-            inc level
-          else:
-            break
+        while level < 6 and parser.peekMatch('#', offset = level): inc level
         parser.pos += level
-        lastElement = newElem('h' & char('0'.byte + level.byte))
-        case parser.str[parser.pos]
-        of '(', '[', '{', '<', ':':
-          const idLegalCharacters = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
+        lastElement = newElem(KnownTags(static(h1.int - 1) + level))
+        const IdStarts = {'(', '[', '{', '<', ':'}
+        if parser.nextMatch(IdStarts):
+          const LegalId = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
           var id = NativeString""
-          while (inc parser.pos; parser.pos < parser.str.len) and parser.str[parser.pos] in idLegalCharacters:
-            id.add(parser.str[parser.pos])
+          while (let ch = parser.get(); parser.nextMatch(LegalId)): id.add(ch)
           inc parser.pos
           lastElement.attrs.add((NativeString"id", id))
-        else: discard
         lastElement.add(parseInline(parser, doubleNewLine = false))
       of '*', '-', '+':
-        if parser.pos + 1 < parser.str.len and parser.str[parser.pos + 1] in Whitespace:
-          inc parser.pos, 2
-          lastElement = newElem("ul")
-          let item = newElem("li")
+        if parser.nextMatch(Whitespace, offset = 1):
+          lastElement = newElem(ul)
+          let item = newElem(li)
           item.add(parseInline(parser, doubleNewLine = false))
           lastElement.add(item)
         else:
-          lastElement = newElem("p", parseInline(parser))
+          lastElement = newElem(p, parseInline(parser, doubleNewLine = true))
       of Digits:
-        var i = 1
-        while parser.pos + i < parser.str.len:
-          if parser.str[parser.pos + i] in Digits:
-            inc i
-          else: break
-        if parser.str.len > parser.pos + i + 1 and parser.str[parser.pos + i] == '.':
-          inc parser.pos, i + 1
-          lastElement = newElem("ol")
-          let item = newElem("li")
+        let originalPos = parser.pos
+        inc parser.pos
+        while parser.nextMatch(Digits): discard
+        if parser.nextMatch('.'):
+          lastElement = newElem(ol)
+          let item = newElem(li)
           item.add(parseInline(parser, doubleNewLine = false))
           lastElement.add(item)
         else:
-          lastElement = newElem("p", parseInline(parser))
+          parser.pos = originalPos
+          lastElement = newElem(p, parseInline(parser, doubleNewLine = true))
       of '>':
-        lastElement = newElem("blockquote")
+        lastElement = newElem(blockquote)
         inc parser.pos
-        lastElement.add(newElem("p", parseInline(parser, doubleNewLine = false)))
-      of '`':
-        if parser.pos + 2 < parser.str.len and parser.str[parser.pos + 1] == '`' and parser.str[parser.pos + 2] == '`':
-          lastElement = newElem("pre", @[newStr("")])
-          inc parser.pos, 3
-          while parser.pos < parser.str.len and parser.str[parser.pos] in Whitespace:
-            inc parser.pos
-          for ch in parser.nextChars:
-            if parser.pos + 3 < parser.str.len and ch == '`' and parser.str[parser.pos+1] == '`' and
-                 parser.str[parser.pos + 2] == '`' and (parser.str[parser.pos+3] == '\n' or (
-                   parser.str[parser.pos+3] == '\r' and parser.pos + 4 < parser.str.len and
-                   parser.str[parser.pos+4] == '\n')):
-              result.add(lastElement)
-              lastElement = nil
-              inc parser.pos, 3 + ord(parser.str[parser.pos+3] == '\r')
-              break
-            else:
-              lastElement[^1].str.add(
-                case ch
-                of '>': "&gt;"
-                of '<': "&lt;"
-                of '&': "&amp;"
-                else: $ch
-              )
-        else:
-          lastElement = newElem("p", parseInline(parser))
+        lastElement.add(newElem(p, parseInline(parser, doubleNewLine = false)))
+      elif parser.nextMatch("```"):
+        add(parseCodeBlock(parser))
       else:
-        lastElement = newElem("p", parseInline(parser))
+        lastElement = newElem(p, parseInline(parser, doubleNewLine = true))
   if not lastElement.isNil:
     result.add(lastElement)
 

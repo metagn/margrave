@@ -29,3 +29,30 @@ These are links.
     <td><a href="/contact">Contact</a></td>
   </tr>
 </tbody></table>
+
+Inline HTML with curly: {<table><tbody>
+  <tr>
+    <td><a href="/music">Music</a></td>
+    <td><a href="/videos">}**format** __break__{</a></td>
+  </tr>
+  <tr><td style="height:10vh"></td></tr>
+  <tr>
+    <td><a href="/about">About</a></td>
+    <td><a href="/contact">Contact</a></td>
+  </tr>
+</tbody></table>}
+
+> a
+> b
+c
+
+def
+
+inline code block test ```ignore lang for now
+inline code block still
+function foo() {
+  curly block
+}```
+text following code block
+
+more text following code block

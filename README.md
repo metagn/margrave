@@ -51,9 +51,9 @@ italic: *text* _text_
 Strikethrough: ~~text~~
 Inline code (has formatting!): `text`
 Checkboxes anywhere in the document, not just lists: [ ] [x]
-No formatting with curly braces (new): {aaaa **aa**}
-Double curly acts as 1 curly: {{aaadooooo}}
-Code without formatting: {`_ * 3 + 3 * _ + 2 ** 2 ** 2`}
+Raw text with curly braces (new): {aaaa **aa** <span>angle brackets not escaped for raw HTML</span>}
+Nested curly braces: {aa {bb} cc {dd {ee}} ff}
+Code without formatting: `{_ * 3 + 3 * _ + 2 ** 2 ** 2}`
 
 Inline HTML (no formatting inside): <table>
   <tbody>
@@ -85,7 +85,7 @@ Output:
     can also indent</li></ol>
 <blockquote><p> Blockquotes</p>
 
-<p>can <em>be</em> <strong>formatted</strong></p></blockquote>
+<p> can <em>be</em> <strong>formatted</strong></p></blockquote>
 <pre>Code blocks
 Have no formatting
 </pre>
@@ -102,9 +102,9 @@ italic: <em>text</em> <em>text</em>
 Strikethrough: <s>text</s>
 Inline code (has formatting!): <code>text</code>
 Checkboxes anywhere in the document, not just lists: <input type="checkbox" disabled> <input type="checkbox" disabled checked>
-No formatting with curly braces (new): aaaa **aa**
-Double curly acts as 1 curly: {aaadooooo}
-Code without formatting: `_ * 3 + 3 * _ + 2 ** 2 ** 2`</p>
+Raw text with curly braces (new): aaaa **aa** <span>angle brackets not escaped for raw HTML</span>
+Nested curly braces: aa {bb} cc {dd {ee}} ff
+Code without formatting: <code>_ * 3 + 3 * _ + 2 ** 2 ** 2</code></p>
 <p>Inline HTML (no formatting inside): <table>
   <tbody>
     <tr>
@@ -116,5 +116,6 @@ Code without formatting: `_ * 3 + 3 * _ + 2 ** 2 ** 2`</p>
       <td>b 2</td>
     </tr>
   </tbody>
-</table></p>
+</table>
+</p>
 ```

@@ -42,9 +42,9 @@ italic: *text* _text_
 Strikethrough: ~~text~~
 Inline code (has formatting!): `text`
 Checkboxes anywhere in the document, not just lists: [ ] [x]
-No formatting with curly braces (new): {aaaa **aa**}
-Double curly acts as 1 curly: {{aaadooooo}}
-Code without formatting: {`_ * 3 + 3 * _ + 2 ** 2 ** 2`}
+Raw text with curly braces (new): {aaaa **aa** <span>angle brackets not escaped for raw HTML</span>}
+Nested curly braces: {aa {bb} cc {dd {ee}} ff}
+Code without formatting: `{_ * 3 + 3 * _ + 2 ** 2 ** 2}`
 
 Inline HTML (no formatting inside): <table>
   <tbody>

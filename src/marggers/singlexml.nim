@@ -25,13 +25,19 @@ proc untilElementEnd(x: var XmlParser, result: XmlNode,
     else:
       result.addNode(parse(x, errors))
 
+template mov(x: untyped): untyped =
+  when defined(js):
+    x
+  else:
+    move x
+
 proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
   case x.kind
   of xmlComment:
-    result = newComment(move x.charData)
+    result = newComment(mov x.charData)
     next(x)
   of xmlCharData, xmlWhitespace:
-    result = newText(move x.charData)
+    result = newText(mov x.charData)
     next(x)
   of xmlPI, xmlSpecial:
     # we just ignore processing instructions for now
@@ -40,19 +46,19 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
     errors.add(errorMsg(x))
     next(x)
   of xmlElementStart: ## ``<elem>``
-    result = newElement(move x.elementName)
+    result = newElement(mov x.elementName)
     next(x)
     untilElementEnd(x, result, errors)
   of xmlElementEnd:
-    errors.add(errorMsg(x, "unexpected ending tag: " & move x.elementName))
+    errors.add(errorMsg(x, "unexpected ending tag: " & mov x.elementName))
   of xmlElementOpen:
-    result = newElement(move x.elementName)
+    result = newElement(mov x.elementName)
     next(x)
     result.attrs = newStringTable()
     while true:
       case x.kind
       of xmlAttribute:
-        result.attrs[move x.attrKey] = move x.attrValue
+        result.attrs[mov x.attrKey] = mov x.attrValue
         next(x)
       of xmlElementClose:
         next(x)
@@ -70,11 +76,11 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
     errors.add(errorMsg(x, "<some_tag> expected"))
     next(x)
   of xmlCData:
-    result = newCData(move x.charData)
+    result = newCData(mov x.charData)
     next(x)
   of xmlEntity:
     ## &entity;
-    result = newEntity(move x.entityName)
+    result = newEntity(mov x.entityName)
     next(x)
   of xmlEof: discard
 
@@ -91,7 +97,7 @@ proc parseXml*(text: string, i: int): (bool, int) =
   while true:
     case x.kind
     of xmlElementOpen, xmlElementStart:
-      let node = newElement(move(x.elementName))
+      let node = newElement(mov x.elementName)
       untilElementEnd(x, node, errors)
       result[0] = true
     of xmlComment, xmlSpecial, xmlPI, xmlCData:

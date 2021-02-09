@@ -7,8 +7,8 @@ proc becomes(s: string, match: string): bool =
     if i + el.len <= match.len and match[i ..< i + el.len] == el:
       i += el.len
     else:
-      echo "not equal: " & $elem
-      echo "oo: " & match[i .. ^1]
+      echo "got: " & $elem
+      echo "expected: " & match[i .. ^1]
       return false
   result = true
 
@@ -32,3 +32,7 @@ test "basic":
     "*a* _b_ **c** __d__ ~~e~~ `f` g^(h) i[j] [k](l)" ->
       "<p><em>a</em> <em>b</em> <strong>c</strong> <u>d</u> " &
       "<s>e</s> <code>f</code> g<sup>h</sup> i<sub>j</sub> <a href=\"l\">k</a></p>"
+    #"a**a__a" -> "<p>a**a__a</p>"
+    #"a*a_a" -> "<p>a*a_a</p>"
+    #"*a **b***" == "<p><em>a <strong>b</strong></em></p>"
+    # should not be greedy ^
