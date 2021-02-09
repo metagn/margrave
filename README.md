@@ -35,6 +35,8 @@ To escape use \\
 ```
 Code blocks
 Have no formatting
+
+HTML & chars < automatically > escaped
 ```
 
 Inline formatting:
@@ -53,7 +55,7 @@ Inline code (has formatting!): `text`
 Checkboxes anywhere in the document, not just lists: [ ] [x]
 Raw text with curly braces (new): {aaaa **aa** <span>angle brackets not escaped for raw HTML</span>}
 Nested curly braces: {aa {bb} cc {dd {ee}} ff}
-Code without formatting: `{_ * 3 + 3 * _ + 2 ** 2 ** 2}`
+Code without formatting, can escape HTML chars: `{1 \< 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 \& 2}`
 
 Inline HTML (no formatting inside): <table>
   <tbody>
@@ -88,6 +90,8 @@ Output:
 <p> can <em>be</em> <strong>formatted</strong></p></blockquote>
 <pre>Code blocks
 Have no formatting
+
+HTML &amp; chars &lt; automatically &gt; escaped
 </pre>
 <p>Inline formatting:</p>
 <p>Link: <a href="url">text</a>
@@ -104,7 +108,7 @@ Inline code (has formatting!): <code>text</code>
 Checkboxes anywhere in the document, not just lists: <input type="checkbox" disabled> <input type="checkbox" disabled checked>
 Raw text with curly braces (new): aaaa **aa** <span>angle brackets not escaped for raw HTML</span>
 Nested curly braces: aa {bb} cc {dd {ee}} ff
-Code without formatting: <code>_ * 3 + 3 * _ + 2 ** 2 ** 2</code></p>
+Inline code without formatting, can escape HTML chars: <code>1 &lt; 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 &amp; 2</code></p>
 <p>Inline HTML (no formatting inside): <table>
   <tbody>
     <tr>

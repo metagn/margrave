@@ -26,6 +26,8 @@ To escape use \\
 ```
 Code blocks
 Have no formatting
+
+HTML & chars < automatically > escaped
 ```
 
 Inline formatting:
@@ -44,7 +46,7 @@ Inline code (has formatting!): `text`
 Checkboxes anywhere in the document, not just lists: [ ] [x]
 Raw text with curly braces (new): {aaaa **aa** <span>angle brackets not escaped for raw HTML</span>}
 Nested curly braces: {aa {bb} cc {dd {ee}} ff}
-Code without formatting: `{_ * 3 + 3 * _ + 2 ** 2 ** 2}`
+Inline code without formatting, can escape HTML chars: `{1 \< 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 \& 2}`
 
 Inline HTML (no formatting inside): <table>
   <tbody>

@@ -32,7 +32,10 @@ test "basic":
     "*a* _b_ **c** __d__ ~~e~~ `f` g^(h) i[j] [k](l)" ->
       "<p><em>a</em> <em>b</em> <strong>c</strong> <u>d</u> " &
       "<s>e</s> <code>f</code> g<sup>h</sup> i<sub>j</sub> <a href=\"l\">k</a></p>"
-    #"a**a__a" -> "<p>a**a__a</p>"
-    #"a*a_a" -> "<p>a*a_a</p>"
-    #"*a **b***" == "<p><em>a <strong>b</strong></em></p>"
-    # should not be greedy ^
+
+    # issue #4:
+    "a**a__a" -> "<p>a**a__a</p>"
+    "a*a_a" -> "<p>a*a_a</p>"
+
+    # should not be greedy:
+    # "*a **b***" == "<p><em>a <strong>b</strong></em></p>"
