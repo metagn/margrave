@@ -1,10 +1,9 @@
 # marggers
 
-Dialect of markdown (that outputs to HTML) that I once made for a purpose that didn't work out.
-Very fragile and sloppily put together. Only use if you really want to.
+Dialect of markdown that outputs to HTML. Not stable. [Try in browser](https://hlaaftana.github.io/marggers/browser/converter.html).
 
-Tested for C backend, but JS backend only works with Nim >= 1.3 due to Nim's XML parser needing StringStream which isn't supported etc.
-Also seems to work with --gc:arc because why wouldn't it.
+Gets tested for C, JS and Nimscript (so also VM) backends (see .nimble).
+Docs at https://hlaaftana.github.io/marggers/docs/marggers.html.
 
 ````markdown
 To escape use \\

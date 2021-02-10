@@ -1,5 +1,6 @@
 ## Parses a single XML node using Nim's parsexml.
-## Works for JS in versions above 1.2.x.
+## Works for JS in versions >= 1.3. `-d:marggersNoInlineHtml` to
+## not use this module in the parser.
 
 import parsexml, xmltree, streams, strtabs
 
@@ -25,19 +26,20 @@ proc untilElementEnd(x: var XmlParser, result: XmlNode,
     else:
       result.addNode(parse(x, errors))
 
-template mov(x: untyped): untyped =
-  when defined(js):
+template moveCompat(x: untyped): untyped =
+  when defined(js) or not declared(move):
+    # bugged for JS, would be fixed in https://github.com/nim-lang/Nim/pull/16979
     x
   else:
-    move x
+    move(x)
 
 proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
   case x.kind
   of xmlComment:
-    result = newComment(mov x.charData)
+    result = newComment(moveCompat x.charData)
     next(x)
   of xmlCharData, xmlWhitespace:
-    result = newText(mov x.charData)
+    result = newText(moveCompat x.charData)
     next(x)
   of xmlPI, xmlSpecial:
     # we just ignore processing instructions for now
@@ -46,19 +48,19 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
     errors.add(errorMsg(x))
     next(x)
   of xmlElementStart: ## ``<elem>``
-    result = newElement(mov x.elementName)
+    result = newElement(moveCompat x.elementName)
     next(x)
     untilElementEnd(x, result, errors)
   of xmlElementEnd:
-    errors.add(errorMsg(x, "unexpected ending tag: " & mov x.elementName))
+    errors.add(errorMsg(x, "unexpected ending tag: " & moveCompat x.elementName))
   of xmlElementOpen:
-    result = newElement(mov x.elementName)
+    result = newElement(moveCompat x.elementName)
     next(x)
     result.attrs = newStringTable()
     while true:
       case x.kind
       of xmlAttribute:
-        result.attrs[mov x.attrKey] = mov x.attrValue
+        result.attrs[moveCompat x.attrKey] = moveCompat x.attrValue
         next(x)
       of xmlElementClose:
         next(x)
@@ -76,11 +78,11 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
     errors.add(errorMsg(x, "<some_tag> expected"))
     next(x)
   of xmlCData:
-    result = newCData(mov x.charData)
+    result = newCData(moveCompat x.charData)
     next(x)
   of xmlEntity:
     ## &entity;
-    result = newEntity(mov x.entityName)
+    result = newEntity(moveCompat x.entityName)
     next(x)
   of xmlEof: discard
 
@@ -97,7 +99,7 @@ proc parseXml*(text: string, i: int): (bool, int) =
   while true:
     case x.kind
     of xmlElementOpen, xmlElementStart:
-      let node = newElement(mov x.elementName)
+      let node = newElement(moveCompat x.elementName)
       untilElementEnd(x, node, errors)
       result[0] = true
     of xmlComment, xmlSpecial, xmlPI, xmlCData:

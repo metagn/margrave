@@ -166,7 +166,8 @@ proc parseDelimed*(parser: var MarggersParser, delim: string, doubleNewLine: boo
         block ampBlock:
           let firstChar = if parser.pos > parser.str.len: ' ' else: parser.str[parser.pos + 1]
           inc parser.pos
-          if firstChar in Letters:
+          case firstChar
+          of Letters:
             inc parser.pos, 2
             for ch in parser.nextChars:
               case ch
@@ -179,7 +180,7 @@ proc parseDelimed*(parser: var MarggersParser, delim: string, doubleNewLine: boo
                 elems[^1].str.add("&amp;")
                 break ampBlock
             elems[^1].str.add(parser.str[initialPos .. parser.pos])
-          elif firstChar == '#':
+          of '#':
             inc parser.pos, 2
             for ch in parser.nextChars:
               case ch
@@ -315,7 +316,6 @@ proc parseInline*(parser: var MarggersParser, doubleNewLine: bool = true): seq[M
   result = elems
 
 proc parseTopLevel*(text: NativeString): seq[MarggersElement] =
-  var lastLineWasEmpty = true
   var lastElement: MarggersElement
   var parser = MarggersParser(str: text, pos: 0)
   template add(elem: MarggersElement) =
@@ -323,7 +323,6 @@ proc parseTopLevel*(text: NativeString): seq[MarggersElement] =
     lastElement = nil
   for firstCh in parser.nextChars:
     if firstCh in {'\r', '\n'}:
-      lastLineWasEmpty = true
       if not lastElement.isNil:
         add(paragraphIfText(lastElement))
     elif not lastElement.isNil:

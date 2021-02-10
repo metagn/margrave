@@ -1,4 +1,4 @@
-*.js
+tests/**/*.js
 *.exe
 tests/files/*_real.html
 tests/files/*_real_lf.html

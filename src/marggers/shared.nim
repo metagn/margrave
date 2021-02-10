@@ -6,24 +6,19 @@ when defined(js) and not defined(nimdoc):
   proc toCstring*(y: char): cstring {.importc: "String.fromCharCode".}
   proc add*(x: var cstring, y: char) =
     x.add(toCstring(y))
+  proc add*(x: var cstring, y: static char) =
+    x.add(static(cstring($y)))
+  proc subs(c: cstring, a, b: int): cstring {.importjs: "#.substring(@)".}
   proc `[]`*(c: cstring, ind: Slice[int]): cstring =
-    {.emit: [result, " = ", c, ".substring(", ind.a, ", ", ind.b + 1, ")"].}
-  proc addQuoted*(s: var cstring, x: cstring) =
-    s.add("\"")
-    for c in x:
-      # Only ASCII chars are escaped to avoid butchering
-      # multibyte UTF-8 characters.
-      if c <= 127.char:
-        var s2 = ""
-        s2.addEscapedChar(c)
-        s.add(s2)
-      else:
-        s.add c
-    s.add("\"")
+    c.subs(ind.a, ind.b + 1)
+  proc `[]`*(c: cstring, ind: HSlice[int, BackwardsIndex]): cstring =
+    c.subs(ind.a, c.len - ind.b.int + 1)
 else:
   type NativeString* = string
     ## Most convenient string type to use for each backend.
     ## `cstring` on JS.
+
+template toNativeString*(x: string | cstring): NativeString = NativeString(x)
 
 type
   KnownTags* = enum
@@ -126,14 +121,16 @@ when defined(js) and not defined(nimdoc):
     if elem.isText:
       result = elem.str
     else:
+      result = ""
       result.add('<')
       result.add(cstring($elem.tag))
       for (attrName, attrValue) in elem.attrs.items:
         result.add(' ')
         result.add(attrName)
         if attrValue.len != 0:
-          result.add('=')
-          result.addQuoted(cstring attrValue)
+          result.add(cstring "=\"")
+          result.add(attrValue)
+          result.add("\"")
       result.add('>')
       for cont in elem.content:
         result.add(cont.toCstring())
@@ -144,9 +141,15 @@ when defined(js) and not defined(nimdoc):
         result.add("</")
         result.add(cstring($elem.tag))
         result.add('>')
-elif defined(nimdoc):
+  template toNativeString*(elem: MarggersElement): NativeString =
+    toCstring(elem)
+else:
   proc toCstring*(elem: MarggersElement): cstring =
-    ## Outputs a marggers element as HTML as a cstring, but only for JS.
+    ## Outputs a marggers element as HTML as a cstring, mostly for JS.
+    cstring($elem)
+  
+  template toNativeString*(elem: MarggersElement): NativeString =
+    $elem
 
 template get*(parser: MarggersParser, offset: int = 0): char =
   parser.str[parser.pos + offset]
