@@ -1,8 +1,4 @@
-tests/**/*.js
+*.js
 *.exe
 tests/files/*_real.html
 tests/files/*_real_lf.html
-_browser
-_docs
-browser
-docs
