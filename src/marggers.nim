@@ -151,4 +151,7 @@ proc parseMarggers*(text: openarray[char]): seq[MarggersElement] =
 
 when isMainModule:
   import os, strutils
-  echo parseMarggers(readFile(paramStr(1))).join("\n")
+  case paramStr(1)
+  of "parse": echo parseMarggers(paramStr(2)).join("\n")
+  of "file": echo parseMarggers(readFile(paramStr(2))).join("\n")
+  else: echo "unknown command: ", paramStr(1)

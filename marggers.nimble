@@ -1,4 +1,4 @@
-version       = "0.2.2"
+version       = "0.2.3"
 author        = "hlaaftana"
 description   = "markdown dialect"
 license       = "MIT"
@@ -22,12 +22,13 @@ task docs, "build docs for all modules":
     docOutDir = "docs"
   echo "Building docs:"
   for f in walkDirRec(srcDir):
-    exec "nim doc --git.url:" & gitUrl &
-      " --git.commit:" & gitCommit &
-      " --git.devel:" & gitDevel &
-      " --outdir:" & docOutDir &
-      " " & docExtraOptions &
-      " " & f
+    if f.endsWith(".nim"):
+      exec "nim doc --git.url:" & gitUrl &
+        " --git.commit:" & gitCommit &
+        " --git.devel:" & gitDevel &
+        " --outdir:" & docOutDir &
+        " " & docExtraOptions &
+        " " & f
   
 import strutils
 

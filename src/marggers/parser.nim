@@ -168,11 +168,73 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
           add(elem)
           result = frDone
 
+      func canAsterisk(parser: MarggersParser): bool {.inline.} =
+        not (
+          (parser.noPrev() or parser.peekPrevMatch(Whitespace)) and
+          (parser.noNext() or parser.peekMatch(Whitespace, offset = 1))
+        )
+
+      func canStartUnderscore(parser: MarggersParser): bool {.inline.} =
+        (
+          parser.noPrev() or parser.peekPrevMatch(Whitespace)
+        ) and not (
+          parser.noNext(offset = 1) or parser.peekMatch(Whitespace, offset = 1)
+        )
+
+      func canEndUnderscore(parser: MarggersParser): bool {.inline.} =
+        (
+          parser.noNext(offset = 1) or parser.peekMatch(Whitespace, offset = 1)
+        ) and not (
+          parser.noPrev() or parser.peekPrevMatch(Whitespace)
+        )
+
+      case delim
+      # custom delim behavior goes here
+      of "": discard
+      of "*":
+        # logic for ** greediness goes here
+        # try to parse **, if it fails then return this element
+        if parser.nextMatch("**"):
+          let (finishReason, parsedElems) = parseDelimed(parser, "**", singleLine)
+          if finishReason == frDone:
+            add(newElem(strong, parsedElems))
+            #inc parser.pos
+            continue
+          else:
+            parser.pos = initialPos
+            if parser.canAsterisk():
+              return (frDone, elems)
+            else:
+              add('*')
+              continue
+        elif parser.canAsterisk() and parser.nextMatch("*"):
+          dec parser.pos
+          return (frDone, elems)
+      of "_":
+        # logic for __ greediness goes here
+        # try to parse __, if it fails then return this element
+        if parser.nextMatch("__"):
+          let (finishReason, parsedElems) = parseDelimed(parser, "__", singleLine)
+          if finishReason == frDone:
+            add(newElem(u, parsedElems))
+            #inc parser.pos
+            continue
+          else:
+            parser.pos = initialPos
+            if parser.canEndUnderscore():
+              return (frDone, elems)
+            else:
+              add('_')
+              continue
+        elif parser.canEndUnderscore() and parser.nextMatch("_"):
+          dec parser.pos
+          return (frDone, elems)
+      else:
+        if parser.nextMatch(delim):
+          dec parser.pos
+          return (frDone, elems)
+
       matchNext parser:
-      elif delim.len != 0 and parser.nextMatch(delim):
-        # greedy ^
-        dec parser.pos
-        return (frDone, elems)
       elif (
         when singleLineStaticBool:
           when singleLine: parser.nextMatch("\r\n") or parser.nextMatch("\n")
@@ -207,8 +269,8 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
         if reason in {frFailed, frReachedEnd}:
           return (reason, elems)
       of '`': parse(code, "`")
-      of '*': parse(em, "*")
-      of '_': parse(em, "_")
+      elif parser.canAsterisk() and parser.nextMatch('*'): parse(em, "*")
+      elif parser.canStartUnderscore() and parser.nextMatch('_'): parse(em, "_")
       of '<':
         dec parser.pos
         let (change, pos) =
@@ -407,12 +469,12 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
           if firstCh == '>':
             lastElement[^1] = lastElement[^1].paragraphIfText
             lastElement.add("\n")
-            if parser.peekMatch("  ", offset = -2):
+            if parser.peekPrevMatch("  "):
               lastElement.add(newElem(br))
           else:
             lastElement[^1] = lastElement[^1].paragraphIfText
             result.add(lastElement)
-            if parser.peekMatch("  ", offset = -2):
+            if parser.peekPrevMatch("  "):
               result.add(newElem(br))
         elif lastElement[^1].isText:
           lastElement.add("\n")

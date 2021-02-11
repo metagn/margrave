@@ -181,14 +181,26 @@ iterator nextChars*(parser: MarggersParserVar): char =
     yield parser.get()
     inc parser.pos
 
+func anyNext*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  parser.pos + offset < parser.str.len
+
+func anyPrev*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  parser.pos + offset - 1 >= 0
+
+template noNext*(parser: MarggersParser, offset: int = 0): bool =
+  not anyNext(parser, offset)
+
+template noPrev*(parser: MarggersParser, offset: int = 0): bool =
+  not anyPrev(parser, offset)
+
 func peekMatch*(parser: MarggersParser, pat: char, offset: int = 0): bool {.inline.} =
-  parser.pos + offset < parser.str.len and parser.get(offset) == pat
+  parser.anyNext(offset) and parser.get(offset) == pat
 
 func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0): bool {.inline.} =
-  parser.pos + offset < parser.str.len and parser.get(offset) in pat
+  parser.anyNext(offset) and parser.get(offset) in pat
 
-func peekMatch*(parser: MarggersParser, pat: char, offset: int = 0, len: int): bool {.inline.} =
-  if parser.pos + offset + len < parser.str.len:
+func peekMatch*(parser: MarggersParser, pat: char, offset: int = 0, len: Natural): bool {.inline.} =
+  if parser.anyNext(offset + len - 1):
     for i in 0 ..< len:
       if parser.get(offset = offset + i) != pat:
         return false
@@ -196,8 +208,8 @@ func peekMatch*(parser: MarggersParser, pat: char, offset: int = 0, len: int): b
   else:
     false
 
-func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0, len: int): bool {.inline.} =
-  if parser.pos + offset + len < parser.str.len:
+func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0, len: Natural): bool {.inline.} =
+  if parser.anyNext(offset + len - 1):
     for i in 0 ..< len:
       if parser.get(offset = offset + i) notin pat:
         return false
@@ -206,7 +218,13 @@ func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0, len: in
     false
 
 func peekMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool {.inline.} =
-  parser.pos + offset + pat.len <= parser.str.len and parser.get(offset, pat.len) == pat
+  parser.anyNext(offset + pat.len - 1) and parser.get(offset, pat.len) == pat
+
+func peekPrevMatch*(parser: MarggersParser, pat: char | set[char], offset: int = 0): bool {.inline.} =
+  parser.anyPrev(offset) and parser.peekMatch(pat, offset = offset - 1)
+
+func peekPrevMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool {.inline.} =
+  parser.anyPrev(offset - pat.len) and parser.peekMatch(pat, offset = offset - pat.len)
 
 func nextMatch*(parser: MarggersParserVar, pat: char, offset: int = 0): bool =
   result = peekMatch(parser, pat, offset)

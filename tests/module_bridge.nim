@@ -38,9 +38,8 @@ when defined(js):
       fn.add(file)
       yield fn
   
-  template suite*(body) =
-    proc runTest*() =
-      body
+  template runTests*(body) =
+    body
 else:
   type NativeString = string
 
@@ -85,18 +84,16 @@ else:
         else:
           echo "[OK] " & testName
   
-    template suite*(body) =
-      proc runTest*() =
-        body
-        if programResult != 0:
-          raise newException(Exception, "test failed")
+    template runTests*(body) =
+      body
+      if programResult != 0:
+        raise newException(Exception, "test failed")
   else:
     import unittest
     export unittest except suite
   
-    template suite*(body) =
-      proc runTest*() =
-        body
+    template runTests*(body) =
+      body
 
   from os import walkDir, PathComponent
 
