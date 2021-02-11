@@ -1,8 +1,10 @@
 # marggers
 
-Dialect of markdown that outputs to HTML. Not stable. [Try in browser](https://hlaaftana.github.io/marggers/browser/converter.html). [Docs](https://hlaaftana.github.io/marggers/docs/marggers.html)
+Dialect of markdown that outputs to HTML. Not stable. [Try in browser](https://hlaaftana.github.io/marggers/browser/converter.html).
+[Docs](https://hlaaftana.github.io/marggers/docs/marggers.html)
 
-Gets tested for C, JS and Nimscript (so also VM) backends (see .nimble).
+Uses [nimbleutils](https://github.com/hlaaftana/nimbleutils) to test for
+C, JS and NimScript (so also VM) and build docs.
 
 ````markdown
 To escape use \\

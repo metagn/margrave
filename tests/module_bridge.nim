@@ -1,3 +1,6 @@
+import nimbleutils/bridge
+export bridge
+
 when defined(js):
   type NativeString = cstring
 
@@ -37,9 +40,6 @@ when defined(js):
       var fn = prefix
       fn.add(file)
       yield fn
-  
-  template runTests*(body) =
-    body
 else:
   type NativeString = string
 
@@ -49,8 +49,6 @@ else:
       checkpoints*: seq[string]
       failed*: bool
     
-    var programResult*: int
-    proc setProgramResult*(c: int) = programResult = c
     var currentTest*: Test # threadvar
 
     template check*(b: bool) =
@@ -58,13 +56,13 @@ else:
         echo "Check failed: " & astToStr(b)
         fail()
 
-    template checkpoint*(s: string) = currentTest.checkpoints.add(s)
+    proc checkpoint*(s: string) = currentTest.checkpoints.add(s)
 
-    template fail*() =
+    proc fail*() =
       when false:
         # this is so stupid
         writeFile("nims_test_failed", "") 
-      setProgramResult(1)
+      anyFailedTests = true
       currentTest.failed = true
     
     template test*(testName, testBody) =
@@ -83,17 +81,9 @@ else:
           echo "[FAILED] " & testName
         else:
           echo "[OK] " & testName
-  
-    template runTests*(body) =
-      body
-      if programResult != 0:
-        raise newException(Exception, "test failed")
   else:
     import unittest
     export unittest except suite
-  
-    template runTests*(body) =
-      body
 
   from os import walkDir, PathComponent
 
