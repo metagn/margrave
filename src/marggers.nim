@@ -138,7 +138,8 @@ proc parseMarggers*(text: NativeString): seq[MarggersElement] =
   ## Parses a string of text in marggers and translates it to HTML line by line.
   ## Result is a sequence of MarggersElements, to simply generate HTML with no need for readability
   ## turn these all into strings with ``$`` and join them with "".
-  result = parseTopLevel(text)
+  var parser = MarggersParser(str: text, pos: 0)
+  result = parseTopLevel(parser)
 
 proc parseMarggers*(text: string | cstring): seq[MarggersElement] =
   ## Alias of parseMarggers that takes any string as the argument.
