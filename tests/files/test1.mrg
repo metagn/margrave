@@ -30,10 +30,10 @@ These are links.
   </tr>
 </tbody></table>
 
-Inline HTML with curly: {<table><tbody>
+Inline HTML with curly: {!<table><tbody>
   <tr>
     <td><a href="/music">Music</a></td>
-    <td><a href="/videos">}**format** __break__{</a></td>
+    <td><a href="/videos">}**format** __break__{!</a></td>
   </tr>
   <tr><td style="height:10vh"></td></tr>
   <tr>

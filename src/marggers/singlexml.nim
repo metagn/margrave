@@ -4,6 +4,8 @@
 
 import parsexml, xmltree, streams, strtabs
 
+from ./shared import moveCompat
+
 proc addNode(father, son: XmlNode) =
   if son != nil: add(father, son)
 
@@ -25,13 +27,6 @@ proc untilElementEnd(x: var XmlParser, result: XmlNode,
       break
     else:
       result.addNode(parse(x, errors))
-
-template moveCompat(x: untyped): untyped =
-  when defined(js) or not declared(move):
-    # bugged for JS, would be fixed in https://github.com/nim-lang/Nim/pull/16979
-    x
-  else:
-    move(x)
 
 proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
   case x.kind

@@ -1,4 +1,5 @@
-tests/**/*.js
 *.exe
-tests/files/*_real.html
-tests/files/*_real_lf.html
+**/*_real.html
+**/*_real_lf.html
+tests/**/*.js
+tests/**/*_nims.nims

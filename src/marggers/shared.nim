@@ -1,4 +1,4 @@
-import macros
+import macros, tables
 
 when defined(js) and not defined(nimdoc):
   type NativeString* = cstring
@@ -14,9 +14,15 @@ when defined(js) and not defined(nimdoc):
     c.subs(ind.a, ind.b + 1)
   func `[]`*(c: cstring, ind: HSlice[int, BackwardsIndex]): cstring =
     c.subs(ind.a, c.len - ind.b.int + 1)
+  func `[]`*(c: cstring, ind: HSlice[BackwardsIndex, BackwardsIndex]): cstring =
+    c.subs(c.len - ind.a.int, c.len - ind.b.int + 1)
+  
+  func strip*(s: cstring): cstring {.importjs: "#.trim()".}
 
   template toNativeString*(x: char): NativeString = toCstring(x)
 else:
+  from strutils import strip
+
   type NativeString* = string
     ## Most convenient string type to use for each backend.
     ## `cstring` on JS.
@@ -25,35 +31,57 @@ else:
 
 template toNativeString*(x: string | cstring): NativeString = NativeString(x)
 
+template moveCompat*(x: untyped): untyped =
+  ## Compatibility replacement for `move`
+  when not declared(move) or (defined(js) and (NimMajor, NimMinor, NimPatch) <= (1, 4, 2)):
+    # bugged for JS, fixed for 1.4.4 in https://github.com/nim-lang/Nim/pull/16979
+    x
+  else:
+    move(x)
+
+when not defined(nimscript):
+  func contains*[I](arr: static array[I, string], x: string): bool {.inline.} =
+    ## More efficient version of `contains` for static arrays of strings
+    ## using `case`
+    case x
+    of arr: result = true
+    else: result = false
+
 type
   KnownTags* = enum
-    ## Enum of tags used in this package.
+    ## Enum of tags used in this library.
     noTag,
     p, br,
     h1, h2, h3, h4, h5, h6,
     ul, ol, li, blockquote,
     sup, sub, em, strong, pre, code, u, s,
-    img, input, a
+    img, input, a,
+    video, audio
 
   MarggersElement* = ref object
     ## An individual node.
     ## 
     ## Can be text, or an HTML element.
     ## 
-    ## If an HTML element, contains a tag, attributes, and a sequence of nodes. 
+    ## HTML element contains tag, attributes, and sequence of nodes. 
     # TODO: replace with DOM element in JS
+    # maybe object variant on tag
     case isText*: bool
     of true:
       str*: NativeString
     else:
       tag*: KnownTags
-      attrs*: seq[(NativeString, NativeString)]
+      attrs*: OrderedTable[NativeString, NativeString]
       content*: seq[MarggersElement]
   
   MarggersParserObj* = object
     ## A parser object.
     str*: NativeString # would be openarray[char] if cstring was compatible
     pos*: int
+    linkReferrers*: Table[NativeString, seq[MarggersElement]]
+      ## Table of link references to elements that use the reference.
+      ## After parsing is done, if this is not empty, then some references
+      ## were left unset.
 
 const parserUseObj = defined(marggersParserUseObj)
 
@@ -81,6 +109,55 @@ func paragraphIfText*(elem: MarggersElement): MarggersElement =
     MarggersElement(isText: false, tag: p, content: @[elem])
   else:
     elem
+
+proc attr*(elem: MarggersElement, key: NativeString): NativeString =
+  ## Gets attribute of element
+  elem.attrs[key]
+
+proc attr*(elem: MarggersElement, key, val: NativeString) =
+  ## Adds attribute to element
+  elem.attrs[key] = val
+
+proc hasAttr*(elem: MarggersElement, key: NativeString): bool =
+  ## Checks if element has attribute
+  elem.attrs.hasKey(key)
+
+proc delAttr*(elem: MarggersElement, key: NativeString) =
+  ## Deletes attribute of element
+  elem.attrs.del(key)
+
+proc style*(elem: MarggersElement, style: NativeString) =
+  ## Adds style to element
+  elem.attr("style", style)
+
+proc setLink*(elem: MarggersElement, link: NativeString) =
+  ## Sets element link.
+  ## 
+  ## If `elem` has tag `a`, sets the `href` attribute to `link`.
+  ## Otherwise if `elem` has tag `img` and link ends with
+  ## .mp4, .m4v, .mov, .ogv or .webm, `elem` will become a video element,
+  ## and if link ends with .mp3, .oga, .ogg, .wav or .flac, `elem` will become
+  ## an audio element; then the `src` attribute will be set to `link`.
+  ## Other tags for `elem` also set the `src` attribute to `link`.
+  let link = link.strip()
+  case elem.tag
+  of a:
+    elem.attr("href", link)
+  of img:
+    if (link.len >= 4 and link[^4 .. ^1] in [NativeString".mp4", ".m4v", ".mov", ".ogv"]) or
+      (link.len >= 5 and link[^5 .. ^1] == ".webm"): 
+      elem.tag = video
+    elif (link.len >= 4 and link[^4 .. ^1] in [NativeString".mp3", ".oga", ".ogg", ".wav"]) or
+      (link.len >= 5 and link[^5 .. ^1] == ".flac"):
+      elem.tag = audio
+    if elem.tag != img:
+      elem.attr("controls", "")
+      var altText: NativeString
+      if elem.attrs.pop("alt", altText):
+        elem.content = @[newStr(altText)]
+    elem.attr("src", link)
+  else:
+    elem.attr("src", link)
 
 const EmptyTags* = {br, img, input}
 
@@ -118,6 +195,14 @@ template add*(elem: MarggersElement, str: NativeString) =
   ## Adds a text node to `elem.content`.
   elem.content.add(newStr(str))
 
+func escapeHtmlChar*(ch: char): NativeString =
+  ## Escapes &, < and > for html.
+  case ch
+  of '<': NativeString("&lt;")
+  of '>': NativeString("&gt;")
+  of '&': NativeString("&amp;")
+  else: toNativeString(ch)
+
 func `$`*(elem: MarggersElement): string =
   ## Outputs a marggers element as HTML.
   if elem.isText:
@@ -125,7 +210,7 @@ func `$`*(elem: MarggersElement): string =
   else:
     result.add('<')
     result.add($elem.tag)
-    for (attrName, attrValue) in elem.attrs.items:
+    for attrName, attrValue in elem.attrs:
       result.add(' ')
       result.add(attrName)
       if attrValue.len != 0:
@@ -146,7 +231,7 @@ when defined(js) and not defined(nimdoc):
     else:
       result = "<"
       result.add(cstring($elem.tag))
-      for (attrName, attrValue) in elem.attrs.items:
+      for attrName, attrValue in elem.attrs:
         result.add(' ')
         result.add(attrName)
         if attrValue.len != 0:
@@ -247,7 +332,7 @@ func nextMatch*(parser: MarggersParserVar, pat: string, offset: int = 0): bool =
   if result: parser.pos += offset + pat.len
 
 macro matchNext*(parser: MarggersParserVar, branches: varargs[untyped]) =
-  result = newTree(nnkIfStmt)
+  result = newTree(nnkIfExpr)
   for b in branches:
     case b.kind
     of nnkOfBranch:
@@ -256,8 +341,12 @@ macro matchNext*(parser: MarggersParserVar, branches: varargs[untyped]) =
       for i in 1 ..< h:
         cond = infix(cond, "or", newCall(ident"nextMatch", parser, b[i]))
       result.add(newTree(nnkElifBranch, cond, b[h]))
-    of nnkElifBranch, nnkElse:
+    of nnkElifBranch, nnkElseExpr:
       result.add(b)
+    of nnkElse:
+      let elseExpr = newNimNode(nnkElseExpr, b)
+      for a in b: elseExpr.add(a)
+      result.add(elseExpr)
     else:
       error("invalid branch for matching parser nextMatch", b)
 

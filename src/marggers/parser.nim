@@ -1,4 +1,4 @@
-import strutils
+import strutils, tables
 import ./shared
 
 const noInlineHtml = defined(marggersNoInlineHtml)
@@ -19,9 +19,19 @@ else:
 proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLineBool): MarggersElement
 
 proc parseCurly*(parser: MarggersParserVar): NativeString =
+  ## Parses a curly bracket element.
+  ## 
+  ## If `-d:marggersCurlyNoHtmlEscape` is defined, initial `!` characters
+  ## are ignored and no HTML chars are escaped.
   result = ""
-  var opencurlys = 1
-  var escaped = false
+  const noHtmlEscapeConst = defined(marggersCurlyNoHtmlEscape)
+  when noHtmlEscapeConst:
+    discard parser.nextMatch('!')
+  else:
+    let noHtmlEscape = parser.nextMatch('!')
+  var
+    opencurlys = 1
+    escaped = false
   for ch in parser.nextChars:
     if not escaped:
       case ch
@@ -37,13 +47,18 @@ proc parseCurly*(parser: MarggersParserVar): NativeString =
         else:
           result.add('}')
       else:
-        result.add(ch)
+        result.add(
+          when noHtmlEscapeConst:
+            ch
+          else:
+            if noHtmlEscape:
+              toNativeString(ch)
+            else:
+              escapeHtmlChar(ch))
     else:
       result.add(
         case ch
-        of '>': NativeString"&gt;"
-        of '<': NativeString"&lt;"
-        of '&': NativeString"&amp;"
+        of '>', '<', '&': escapeHtmlChar(ch)
         of '\\', '}', '{': toNativeString(ch)
         else: NativeString"\\" & toNativeString(ch))
       escaped = false
@@ -298,18 +313,23 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
       escaped = false
   result = (frReachedEnd, elems)
 
-proc parseLink*(parser: MarggersParserVar): tuple[finished: bool, url, tip: string] =
+proc parseLink*(parser: MarggersParserVar, failOnNewline: bool): tuple[finished: bool, url, tip: string] =
   var state: range[0..3] = 0
   var
     delim: char
     escaped = false
     openparens = 1
+  while parser.nextMatch(Whitespace - {'\n'}): discard
   for ch in parser.nextChars:
     case state
     of 0:
       case ch
-      of Whitespace:
+      of Whitespace - {'\n'}:
+        # whitespace after link
         state = 1
+      of '\n':
+        result.finished = failOnNewline
+        return
       of '(':
         inc openparens
         result.url.add('(')
@@ -322,19 +342,32 @@ proc parseLink*(parser: MarggersParserVar): tuple[finished: bool, url, tip: stri
           result.url.add(')')
       else: result.url.add(ch)
     of 1:
-      if ch notin Whitespace:
-        if ch in {'"', '\'', '<'}:
-          state = 2
-          delim = if ch == '<': '>' else: ch
-        elif ch == ')':
-          result.finished = true
-          return
+      case ch:
+      of '"', '\'', '<':
+        state = 2
+        delim = if ch == '<': '>' else: ch
+      of ')':
+        result.finished = true
+        return
+      of '\n':
+        result.finished = failOnNewline
+        return
+      of Whitespace - {'\n'}: discard
+      else:
+        dec parser.pos
+        state = 3
+        delim = ')'
     of 2:
       if not escaped:
         if ch == '\\':
           escaped = true
         elif ch == delim:
+          if delim == ')':
+            dec parser.pos
           state = 3
+        elif ch == '\n':
+          result.finished = failOnNewline
+          return
         else:
           result.tip.add(ch)
       else:
@@ -343,10 +376,51 @@ proc parseLink*(parser: MarggersParserVar): tuple[finished: bool, url, tip: stri
         result.tip.add(ch)
         escaped = false
     of 3:
-      if ch == ')':
+      case ch
+      of ')':
         result.finished = true
         return
-  result.finished = false
+      of '\n':
+        result.finished = failOnNewline
+        return
+      of Whitespace - {'\n'}: discard
+      else:
+        result.finished = false
+        return
+  result.finished = failOnNewline
+
+proc parseReferenceName*(parser: MarggersParserVar, failed: var bool): NativeString =
+  ## Does not reset position after failing.
+  result = ""
+  var
+    openbracks = 1
+    escaped = false
+  for ch in parser.nextChars:
+    if not escaped:
+      case ch
+      of '\\':
+        escaped = true
+      of '[':
+        inc openbracks
+        result.add('[')
+      of ']':
+        dec openbracks
+        if openbracks == 0:
+          return
+        else:
+          result.add(']')
+      of '\n':
+        failed = true
+        return
+      else:
+        result.add(escapeHtmlChar(ch))
+    else:
+      result.add(
+        case ch
+        of '\\', '[', ']': toNativeString(ch)
+        else: NativeString"\\" & escapeHtmlChar(ch))
+      escaped = false
+  failed = true
 
 proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLineBool): MarggersElement =
   let firstPos = parser.pos
@@ -363,43 +437,60 @@ proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLin
       else: 0
     else: 0
   if parser.pos < parser.str.len:
-    if parser.get() == '(':
-      let oldPos = parser.pos
-      inc parser.pos
-      let (linkWorked, link, tip) = parseLink(parser)
+    let initialPos = parser.pos
+    parser.matchNext():
+    of '(':
+      let (linkWorked, link, tip) = parseLink(parser, failOnNewline = false)
       if linkWorked:
-        let elem = MarggersElement(isText: false)
+        result = MarggersElement(isText: false)
         if image:
-          elem.tag = img
-          elem.attrs.add((NativeString"src", NativeString link))
+          result.tag = img
+          result.setLink(link)
           if secondPos - firstPos > 0:
-            elem.attrs.add((NativeString"alt", parser.str[firstPos..secondPos]))
+            result.attr("alt", parser.str[firstPos..secondPos])
         else:
-          elem.tag = a
-          elem.content = titleElems
-          elem.attrs.add((NativeString"href",
+          result.tag = a
+          result.content = titleElems
+          result.setLink(
             if link.len == 0 and titleElems.len == 1 and titleElems[0].isText:
-              move(titleElems[0].str)
+              moveCompat(titleElems[0].str)
             else:
-              NativeString link))
+              link)
         if tip.len != 0:
-          elem.attrs.add((NativeString"title", NativeString tip))
-        return elem
+          result.attr("title", tip)
+        return
       else:
-        parser.pos = oldPos
+        parser.pos = initialPos
+    of '[':
+      var refNameFailed = false
+      var refName = parseReferenceName(parser, refNameFailed)
+      if refNameFailed:
+        parser.pos = initialPos
+      else:
+        if refName.len == 0: refName = parser.str[firstPos..secondPos]
+        result = MarggersElement(isText: false)
+        if image:
+          result.tag = img
+          if secondPos - firstPos > 0:
+            result.attr("alt", parser.str[firstPos..secondPos])
+        else:
+          result.tag = a
+          result.content = titleElems
+        parser.linkReferrers.mgetOrPut(refName, @[]).add(result)
+        return
     else:
       dec parser.pos
   if image:
+    # this could be used like a directive tag
     result = newElem(noTag, titleElems)
   elif checkMark == 0:
     result = newElem(sub, titleElems)
   else:
-    let elem = newElem(input)
-    elem.attrs.add((NativeString"type", NativeString"checkbox"))
-    elem.attrs.add((NativeString"disabled", NativeString""))
+    result = newElem(input)
+    result.attr("type", "checkbox")
+    result.attr("disabled", "")
     if checkMark == 2:
-      elem.attrs.add((NativeString"checked", NativeString""))
-    result = elem
+      result.attr("checked", "")
 
 proc parseInline*(parser: MarggersParserVar, singleLine: SingleLineBool): seq[MarggersElement] {.inline.} =
   let (finishReason, elems) = parseDelimed(parser, "", singleLine)
@@ -459,7 +550,7 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
             of '\n':
               parser.pos += i
               return true
-            of '\r', InlineWhitespace:
+            of Whitespace - {'\n'}:
               discard
             else:
               return false
@@ -503,13 +594,17 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
         while level < 6 and parser.peekMatch('#', offset = level): inc level
         parser.pos += level
         lastElement = newElem(KnownTags(static(h1.int - 1) + level))
-        const IdStarts = {'(', '[', '{', '<', ':'}
+        const IdStarts = {'(', '[', '{', ':'}
+        parser.matchNext:
+        of '|': style lastElement, "text-align:center"
+        of '<': style lastElement, "text-align:left"
+        of '>': style lastElement, "text-align:right"
         if parser.nextMatch(IdStarts):
           const LegalId = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
           var id = NativeString""
           while (let ch = parser.get(); parser.nextMatch(LegalId)): id.add(ch)
           inc parser.pos
-          lastElement.attrs.add((NativeString"id", id))
+          lastElement.attr("id", id)
         lastElement.add(parseSingleLine(parser))
       of '*', '-', '+':
         if parser.nextMatch(Whitespace, offset = 1):
@@ -535,6 +630,22 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
         lastElement = newElem(blockquote)
         inc parser.pos
         lastElement.add(newElem(p, parseSingleLine(parser)))
+      of '[':
+        # reference link
+        let initialPos = parser.pos
+        inc parser.pos
+        var refNameFailed = false
+        let refName = parseReferenceName(parser, refNameFailed)
+        if not refNameFailed and (inc parser.pos; parser.nextMatch(':')) and
+          (let (correct, link, tip) = parseLink(parser, failOnNewline = true);
+            correct): # smooth
+          for el in parser.linkReferrers.getOrDefault(refName, @[]):
+            el.setLink(link)
+            if tip.len != 0:
+              el.attr("title", tip)
+        else:
+          parser.pos = initialPos
+          lastElement = newElem(p, parseLine(parser))
       elif parser.nextMatch("```"):
         add(parseCodeBlock(parser, '`'))
       elif parser.nextMatch("~~~"):

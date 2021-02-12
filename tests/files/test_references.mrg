@@ -1,0 +1,5 @@
+I have a [reference][]. I have another [reference][the second reference]. Check this video: ![video alt text][video link]
+
+[reference]: https://reference.com/
+[the second reference]: https://reference.com/secondreference "with tooltip"
+[video link]: /video.mp4 "the video"

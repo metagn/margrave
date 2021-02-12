@@ -40,6 +40,17 @@ const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
   "a _b _c": "<p>a _b _c</p>",
   "a _b_ c": "<p>a <em>b</em> c</p>",
   "a * b * c": "<p>a * b * c</p>",
+
+  # aligned headings, #8
+  "#<{header-id} Header": "<h1 style=\"text-align:left\" id=\"header-id\"> Header</h1>",
+  "###|(header-id) Header": "<h3 style=\"text-align:center\" id=\"header-id\"> Header</h3>",
+  # :header-id segfaults nimscript for some reason
+
+  # video/audio links, #16
+  "video: ![](video.mp4)": "<p>video: <video controls src=\"video.mp4\"></video></p>",
+  "audio: ![](audio.mp3)": "<p>audio: <audio controls src=\"audio.mp3\"></audio></p>",
+  "ignores space: ![]( video.mp4 )": "<p>ignores space: <video controls src=\"video.mp4\"></video></p>",
+  "dir link: ![](video.mp4/)": "<p>dir link: <img src=\"video.mp4/\"></p>",
 }
 
 iterator inlineTests*: tuple[marggers, html: NativeString] =

@@ -30,10 +30,11 @@ italic: <em>text</em> <em>text</em>
 Strikethrough: <s>text</s>
 Inline code (has formatting!): <code>text</code>
 Checkboxes anywhere in the document, not just lists: <input type="checkbox" disabled> <input type="checkbox" disabled checked>
-Raw text with curly braces (new): aaaa **aa** <span>angle brackets not escaped for raw HTML</span>
+Unformatted text with curly braces (new): aaa **aaa** __aaa__
+Raw curly braces (HTML chars left unescaped):  foo <span>bar</span>
 Nested curly braces: aa {bb} cc {dd {ee}} ff
-Inline code without formatting, can escape HTML chars: <code>1 &lt; 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 &amp; 2</code></p>
-<p>Inline HTML (no formatting inside): <table>
+Inline code without formatting: <code>1 &lt; 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 &amp; 2</code></p>
+<p>Inline HTML (no formatting inside, raw curly braces might be better): <table>
   <tbody>
     <tr>
       <td>a 1</td>

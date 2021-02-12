@@ -3,7 +3,27 @@ export bridge
 
 when defined(js):
   type NativeString = cstring
+else:
+  type NativeString = string
 
+proc properFile*(str: NativeString, addSlash = false): string =
+  let len = str.len
+  when defined(nimscript):
+    result = newStringOfCap(len + int(addSlash))
+    for c in str:
+      result.add(if c == '\\': '/' else: c)
+    if addSlash: result.add('/')
+  else:
+    result = newString(len + int(addSlash))
+    for i in 0 ..< len:
+      let c = str[i]
+      result[i] = if c == '\\': '/' else: c
+    if addSlash: result[len] = '/'
+
+proc properDir*(str: NativeString): string {.inline.} =
+  result = properFile(str, str[str.len - 1] notin {'/', '\\'})
+
+when defined(js):
   import unittest
   export unittest except test, suite
   
@@ -30,19 +50,14 @@ when defined(js):
   template read*(path: NativeString): string = $fs.readFileSync(path)
   template write*(path, data: NativeString) = fs.writeFileSync(path, data)
 
-  iterator files*(path: NativeString): NativeString =
-    var prefix = path
-    for c in prefix.mitems:
-      if c == '\\': c = '/'
-    if prefix[prefix.len - 1] notin {'\\', '/'}: prefix.add("/")
-    let files = fs.readdirSync(path)
-    for file in files:
-      var fn = prefix
-      fn.add(file)
-      yield fn
-else:
-  type NativeString = string
+  proc `&`(a, b: cstring): cstring {.importjs: "(# + #)".}
 
+  iterator files*(dir: NativeString): tuple[noDir: string, withDir: NativeString] =
+    let prefix = cstring properDir(dir)
+    let files = fs.readdirSync(dir)
+    for file in files:
+      yield ($file, prefix & file)
+else:
   when defined(nimscript):
     type Test* = object
       name*: string
@@ -87,18 +102,11 @@ else:
 
   from os import walkDir, PathComponent
 
-  iterator files*(path: NativeString): NativeString =
-    for (kind, file) in walkDir(path):
+  iterator files*(dir: NativeString): tuple[noDir: string, withDir: NativeString] =
+    let prefix = properDir(dir)
+    for (kind, file) in walkDir(dir, relative = true):
       if kind == pcFile:
-        when defined(nimscript):
-          var fn = newStringOfCap(file.len)
-          for c in file:
-            fn.add(if c == '\\': '/' else: c)
-        else:
-          var fn = file
-          for c in fn.mitems:
-            if c == '\\': c = '/'
-        yield fn
+        yield (file, prefix & file)
 
   template read*(path: NativeString): string = readFile(path)
   template write*(path, data: NativeString) = writeFile(path, data)

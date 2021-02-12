@@ -6,6 +6,8 @@ Dialect of markdown that outputs to HTML. Not stable. [Try in browser](https://h
 Uses [nimbleutils](https://github.com/hlaaftana/nimbleutils) to test for
 C, JS and NimScript (so also VM) and build docs.
 
+Input file ref.mrg:
+
 ````markdown
 To escape use \\
 
@@ -53,11 +55,12 @@ italic: *text* _text_
 Strikethrough: ~~text~~
 Inline code (has formatting!): `text`
 Checkboxes anywhere in the document, not just lists: [ ] [x]
-Raw text with curly braces (new): {aaaa **aa** <span>angle brackets not escaped for raw HTML</span>}
+Unformatted text with curly braces (new): {aaa **aaa** __aaa__}
+Raw curly braces (HTML chars left unescaped): {! foo <span>bar</span>}
 Nested curly braces: {aa {bb} cc {dd {ee}} ff}
-Code without formatting, can escape HTML chars: `{1 \< 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 \& 2}`
+Inline code without formatting: `{1 < 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 & 2}`
 
-Inline HTML (no formatting inside): <table>
+Inline HTML (no formatting inside, raw curly braces might be better): <table>
   <tbody>
     <tr>
       <td>a 1</td>
@@ -71,7 +74,7 @@ Inline HTML (no formatting inside): <table>
 </table>
 ````
 
-Output:
+outputs to ref.html:
 
 ```HTML
 <p>To escape use \</p>
@@ -106,10 +109,11 @@ italic: <em>text</em> <em>text</em>
 Strikethrough: <s>text</s>
 Inline code (has formatting!): <code>text</code>
 Checkboxes anywhere in the document, not just lists: <input type="checkbox" disabled> <input type="checkbox" disabled checked>
-Raw text with curly braces (new): aaaa **aa** <span>angle brackets not escaped for raw HTML</span>
+Unformatted text with curly braces (new): aaa **aaa** __aaa__
+Raw curly braces (HTML chars left unescaped):  foo <span>bar</span>
 Nested curly braces: aa {bb} cc {dd {ee}} ff
-Inline code without formatting, can escape HTML chars: <code>1 &lt; 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 &amp; 2</code></p>
-<p>Inline HTML (no formatting inside): <table>
+Inline code without formatting: <code>1 &lt; 3 ? _ * 3 + 3 * _ + 2 ** 2 ** 2 : 4 &amp; 2</code></p>
+<p>Inline HTML (no formatting inside, raw curly braces might be better): <table>
   <tbody>
     <tr>
       <td>a 1</td>
