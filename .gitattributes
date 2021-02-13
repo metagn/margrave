@@ -1,1 +1,2 @@
 *.js linguist-generated
+docs/**/* linguist-generated
