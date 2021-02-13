@@ -156,11 +156,11 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
         template nextMatch(parser: MarggersParserVar, pat: string): bool =
           check(pat) and (parser.pos += matchLen; true)
 
-      proc parseAux(tag: KnownTags, del: string, parser: MarggersParserVar#[
-        elems: var seq[MarggersElement], singleLine: SingleLineBool, initial: int]#): DelimFinishReason =
+      proc parseAux(tag: KnownTags, del: string, parser: MarggersParserVar,
+        acceptedReasons = {frDone}): DelimFinishReason =
         let currentPos = parser.pos
         let (finishReason, parsedElems) = parseDelimed(parser, del, singleLine)
-        if finishReason == frDone:
+        if finishReason in acceptedReasons:
           add(newElem(tag, parsedElems))
           result = frDone
         else:
@@ -168,8 +168,8 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
           add(parsedElems)
           result = finishReason
 
-      template parse(tag: KnownTags, del: string) =
-        let reason = parseAux(tag, del, parser, #[, elems, singleLine, initialPos]#)
+      template parse(tag: KnownTags, del: string, acceptedReasons = {frDone}) =
+        let reason = parseAux(tag, del, parser, acceptedReasons)
         if reason in {frFailed, frReachedEnd}:
           return (reason, elems)
 
@@ -178,30 +178,10 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
         if elem.tag == noTag:
           add(if image: NativeString"![" else: NativeString"[")
           add(elem.content)
-          result = frFailed
+          #result = frFailed
         else:
           add(elem)
-          result = frDone
-
-      func canAsterisk(parser: MarggersParser): bool {.inline.} =
-        not (
-          (parser.noPrev() or parser.peekPrevMatch(Whitespace)) and
-          (parser.noNext() or parser.peekMatch(Whitespace, offset = 1))
-        )
-
-      func canStartUnderscore(parser: MarggersParser): bool {.inline.} =
-        (
-          parser.noPrev() or parser.peekPrevMatch(Whitespace)
-        ) and not (
-          parser.noNext(offset = 1) or parser.peekMatch(Whitespace, offset = 1)
-        )
-
-      func canEndUnderscore(parser: MarggersParser): bool {.inline.} =
-        (
-          parser.noNext(offset = 1) or parser.peekMatch(Whitespace, offset = 1)
-        ) and not (
-          parser.noPrev() or parser.peekPrevMatch(Whitespace)
-        )
+        result = frDone
 
       case delim
       # custom delim behavior goes here
@@ -217,12 +197,12 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
             continue
           else:
             parser.pos = initialPos
-            if parser.canAsterisk():
+            if not parser.surroundedWhitespace():
               return (frDone, elems)
             else:
               add('*')
               continue
-        elif parser.canAsterisk() and parser.nextMatch("*"):
+        elif not parser.surroundedWhitespace() and parser.nextMatch("*"):
           dec parser.pos
           return (frDone, elems)
       of "_":
@@ -236,12 +216,16 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
             continue
           else:
             parser.pos = initialPos
-            if parser.canEndUnderscore():
+            if parser.onlyNextWhitespace():
               return (frDone, elems)
             else:
               add('_')
               continue
-        elif parser.canEndUnderscore() and parser.nextMatch("_"):
+        elif parser.onlyNextWhitespace() and parser.nextMatch("_"):
+          dec parser.pos
+          return (frDone, elems)
+      of " ":
+        if ch in Whitespace:
           dec parser.pos
           return (frDone, elems)
       else:
@@ -284,8 +268,12 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
         if reason in {frFailed, frReachedEnd}:
           return (reason, elems)
       of '`': parse(code, "`")
-      elif parser.canAsterisk() and parser.nextMatch('*'): parse(em, "*")
-      elif parser.canStartUnderscore() and parser.nextMatch('_'): parse(em, "_")
+      elif parser.noAdjacentWhitespace() and parser.nextMatch('^'):
+        parse(sup, " ", {frDone, frReachedEnd})
+      elif not parser.surroundedWhitespace() and parser.nextMatch('*'):
+        parse(em, "*")
+      elif parser.onlyPrevWhitespace() and parser.nextMatch('_'):
+        parse(em, "_")
       of '<':
         dec parser.pos
         let (change, pos) =
@@ -314,19 +302,26 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
   result = (frReachedEnd, elems)
 
 proc parseLink*(parser: MarggersParserVar, failOnNewline: bool): tuple[finished: bool, url, tip: string] =
-  var state: range[0..3] = 0
+  # why is this 100 lines
+  type State = enum
+    recordingLink
+    waitingTitle
+    recordingTitle
+    waitingEnd
   var
+    state: State
     delim: char
     escaped = false
     openparens = 1
+  # skip first whitespace:
   while parser.nextMatch(Whitespace - {'\n'}): discard
   for ch in parser.nextChars:
     case state
-    of 0:
+    of recordingLink:
       case ch
       of Whitespace - {'\n'}:
         # whitespace after link
-        state = 1
+        state = waitingTitle
       of '\n':
         result.finished = failOnNewline
         return
@@ -341,10 +336,10 @@ proc parseLink*(parser: MarggersParserVar, failOnNewline: bool): tuple[finished:
         else:
           result.url.add(')')
       else: result.url.add(ch)
-    of 1:
+    of waitingTitle:
       case ch:
       of '"', '\'', '<':
-        state = 2
+        state = recordingTitle
         delim = if ch == '<': '>' else: ch
       of ')':
         result.finished = true
@@ -355,16 +350,16 @@ proc parseLink*(parser: MarggersParserVar, failOnNewline: bool): tuple[finished:
       of Whitespace - {'\n'}: discard
       else:
         dec parser.pos
-        state = 3
+        state = recordingTitle
         delim = ')'
-    of 2:
+    of recordingTitle:
       if not escaped:
         if ch == '\\':
           escaped = true
         elif ch == delim:
           if delim == ')':
             dec parser.pos
-          state = 3
+          state = waitingEnd
         elif ch == '\n':
           result.finished = failOnNewline
           return
@@ -375,7 +370,7 @@ proc parseLink*(parser: MarggersParserVar, failOnNewline: bool): tuple[finished:
           result.tip.add('\\')
         result.tip.add(ch)
         escaped = false
-    of 3:
+    of waitingEnd:
       case ch
       of ')':
         result.finished = true
@@ -423,19 +418,20 @@ proc parseReferenceName*(parser: MarggersParserVar, failed: var bool): NativeStr
   failed = true
 
 proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLineBool): MarggersElement =
+  let canBeSub = not image and not parser.prevWhitespace(offset = -1)
   let firstPos = parser.pos
-  let (titleWorked, titleElems) = parseDelimed(parser, "]", singleLine)
+  let (textWorked, textElems) = parseDelimed(parser, "]", singleLine)
   inc parser.pos
   let secondPos = parser.pos - 2
-  if titleWorked != frDone:
-    return newElem(noTag, titleElems)
+  if textWorked != frDone:
+    return newElem(noTag, textElems)
   let checkMark =
-    if not image and titleElems.len == 1 and titleElems[0].isText and titleElems[0].str.len == 1:
-      case titleElems[0].str[0]
-      of ' ': 1
-      of 'x': 2
-      else: 0
-    else: 0
+    if not image and textElems.len == 1 and textElems[0].isText and textElems[0].str.len == 1:
+      case textElems[0].str[0]
+      of ' ': 1u8
+      of 'x': 2u8
+      else: 0u8
+    else: 0u8
   if parser.pos < parser.str.len:
     let initialPos = parser.pos
     parser.matchNext():
@@ -450,10 +446,10 @@ proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLin
             result.attr("alt", parser.str[firstPos..secondPos])
         else:
           result.tag = a
-          result.content = titleElems
+          result.content = textElems
           result.setLink(
-            if link.len == 0 and titleElems.len == 1 and titleElems[0].isText:
-              moveCompat(titleElems[0].str)
+            if link.len == 0 and textElems.len == 1 and textElems[0].isText:
+              moveCompat(textElems[0].str)
             else:
               link)
         if tip.len != 0:
@@ -475,16 +471,16 @@ proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLin
             result.attr("alt", parser.str[firstPos..secondPos])
         else:
           result.tag = a
-          result.content = titleElems
+          result.content = textElems
         parser.linkReferrers.mgetOrPut(refName, @[]).add(result)
         return
     else:
       dec parser.pos
   if image:
     # this could be used like a directive tag
-    result = newElem(noTag, titleElems)
+    result = newElem(noTag, textElems)
   elif checkMark == 0:
-    result = newElem(sub, titleElems)
+    result = newElem(if canBeSub: sub else: (dec parser.pos; noTag), textElems)
   else:
     result = newElem(input)
     result.attr("type", "checkbox")
@@ -594,16 +590,22 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
         while level < 6 and parser.peekMatch('#', offset = level): inc level
         parser.pos += level
         lastElement = newElem(KnownTags(static(h1.int - 1) + level))
-        const IdStarts = {'(', '[', '{', ':'}
         parser.matchNext:
         of '|': style lastElement, "text-align:center"
         of '<': style lastElement, "text-align:left"
         of '>': style lastElement, "text-align:right"
+        const IdStarts = {'(', '[', '{', ':'}
         if parser.nextMatch(IdStarts):
           const LegalId = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
+          let idDelim =
+            case parser.get(-1)
+            of '(': ')'
+            of '[': ']'
+            of '{': '}'
+            else: '\0'
           var id = NativeString""
           while (let ch = parser.get(); parser.nextMatch(LegalId)): id.add(ch)
-          inc parser.pos
+          discard parser.nextMatch(idDelim)
           lastElement.attr("id", id)
         lastElement.add(parseSingleLine(parser))
       of '*', '-', '+':

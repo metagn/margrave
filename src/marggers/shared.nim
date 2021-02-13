@@ -1,5 +1,7 @@
 import macros, tables
 
+from strutils import Whitespace
+
 when defined(js) and not defined(nimdoc):
   type NativeString* = cstring
 
@@ -310,6 +312,24 @@ func peekPrevMatch*(parser: MarggersParser, pat: char | set[char], offset: int =
 
 func peekPrevMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool {.inline.} =
   parser.anyPrev(offset - pat.len) and parser.peekMatch(pat, offset = offset - pat.len)
+      
+func prevWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  parser.noPrev(offset) or parser.peekPrevMatch(Whitespace, offset)
+
+func nextWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  parser.noNext(offset) or parser.peekMatch(Whitespace, offset = offset + 1)
+
+func surroundedWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  parser.prevWhitespace(offset) and parser.nextWhitespace(offset)
+
+func onlyPrevWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  parser.prevWhitespace(offset) and not parser.nextWhitespace(offset)
+
+func onlyNextWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  not parser.prevWhitespace(offset) and parser.nextWhitespace(offset)
+
+func noAdjacentWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  not parser.prevWhitespace(offset) and not parser.nextWhitespace(offset)
 
 func nextMatch*(parser: MarggersParserVar, pat: char, offset: int = 0): bool =
   result = peekMatch(parser, pat, offset)
