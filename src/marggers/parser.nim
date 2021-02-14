@@ -88,17 +88,21 @@ proc parseAmpStr*(parser: MarggersParserVar): NativeString =
   else:
     result = "&amp;"
 
-proc parseCodeBlockStr*(parser: MarggersParserVar, delimChar: char): NativeString =
-  result = NativeString""
+proc parseCodeBlockStr*(parser: MarggersParserVar, delimChar: char): tuple[language, code: NativeString] =
+  result = (NativeString"", NativeString"")
   var delimLen = 3
   while parser.nextMatch(delimChar): inc delimLen
   while parser.nextMatch(Whitespace): discard
+  if not parser.codeBlockLanguageHandler.isNil:
+    const LegalLanguage = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
+    while (let ch = parser.get(); parser.nextMatch(LegalLanguage)):
+      result.language.add(ch)
   for ch in parser.nextChars:
     if parser.nextMatch(delimChar, len = delimLen):
       dec parser.pos # idk?? helps newline?
       return
     else:
-      result.add(
+      result.code.add(
         case ch
         of '>': NativeString"&gt;"
         of '<': NativeString"&lt;"
@@ -107,7 +111,10 @@ proc parseCodeBlockStr*(parser: MarggersParserVar, delimChar: char): NativeStrin
       )
 
 proc parseCodeBlock*(parser: MarggersParserVar, delimChar: char): MarggersElement {.inline.} =
-  result = newElem(pre, @[newStr(parseCodeBlockStr(parser, delimChar))])
+  let str = parseCodeBlockStr(parser, delimChar)
+  result = newElem(pre, @[newStr(str.code)])
+  if not parser.codeBlockLanguageHandler.isNil and str.language.len != 0:
+    parser.codeBlockLanguageHandler(str.language, result)
 
 type
   DelimFinishReason* = enum
@@ -499,18 +506,30 @@ template parseSingleLine*(parser: MarggersParserVar): seq[MarggersElement] =
 template parseLine*(parser: MarggersParserVar): seq[MarggersElement] =
   parseInline(parser, singleLine = false)
 
-const InlineWhitespace* = Whitespace - {'\r', '\n'}
+const
+  SpecialLineTags* = {ul, ol, blockquote}
+  IdStarts* = {'(', '[', '{', ':'}
+  LegalId* = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
+  InlineWhitespace* = Whitespace - {'\r', '\n'}
 
-func newMarggersParser*(text: NativeString): MarggersParser {.inline.} =
-  MarggersParser(str: text, pos: 0)
+proc parseId*(parser: MarggersParserVar, startChar: char): NativeString =
+  let idDelim =
+    case startChar
+    of '(': ')'
+    of '[': ']'
+    of '{': '}'
+    else: '\0'
+  result = NativeString""
+  while (let ch = parser.get(); parser.nextMatch(LegalId)): result.add(ch)
+  discard parser.nextMatch(idDelim)
 
 proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
   var lastElement: MarggersElement
+  # todo: move ^ to parser so top level can be individually parsed
   template add(elem: MarggersElement) =
     result.add(elem)
     lastElement = nil
   for firstCh in parser.nextChars:
-    const specialLineTags = {ul, ol, blockquote}
     if firstCh in {'\r', '\n'}:
       if not lastElement.isNil:
         add(paragraphIfText(lastElement))
@@ -522,15 +541,21 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
           let item = newElem(li)
           item.content = parseSingleLine(parser)
           lastElement.add(item)
+        elif parser.nextMatch(IdStarts, offset = 1):
+          var item = newElem(li)
+          item.attr("id", parser.parseId(parser.get(-1)))
+          item.content = parseSingleLine(parser)
+          lastElement.add(item)
         else:
           lastElement[^1].add("\n")
           lastElement[^1].add(parseSingleLine(parser))
       of ol:
         var i = 0
         while parser.peekMatch(Digits, offset = i): inc i
-        if parser.pos + i + 1 < parser.str.len and parser.peekMatch('.', offset = i):
-          parser.pos += i + 1
+        if parser.nextMatch('.', offset = i):
           let item = newElem(li)
+          if (let ch = parser.get(); parser.nextMatch(IdStarts)):
+            item.attr("id", parser.parseId(ch))
           item.content = parseSingleLine(parser)
           lastElement.add(item)
         else:
@@ -572,14 +597,14 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
         else:
           lastElement[^1].add("\n")
           lastElement[^1].add(parseSingleLine(parser))
-      of {low(KnownTags)..high(KnownTags)} - specialLineTags:
+      of {low(KnownTags)..high(KnownTags)} - SpecialLineTags:
         add(paragraphIfText(lastElement))
         dec parser.pos
     else:
       case firstCh
       of InlineWhitespace:
         if result.len != 0 and not result[^1].isText and
-           result[^1].tag in specialLineTags and
+           result[^1].tag in SpecialLineTags and
            result[^1].content.len != 0:
           result[^1][^1].add("\n ")
           result[^1][^1].add(parseLine(parser))
@@ -594,25 +619,20 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
         of '|': style lastElement, "text-align:center"
         of '<': style lastElement, "text-align:left"
         of '>': style lastElement, "text-align:right"
-        const IdStarts = {'(', '[', '{', ':'}
-        if parser.nextMatch(IdStarts):
-          const LegalId = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
-          let idDelim =
-            case parser.get(-1)
-            of '(': ')'
-            of '[': ']'
-            of '{': '}'
-            else: '\0'
-          var id = NativeString""
-          while (let ch = parser.get(); parser.nextMatch(LegalId)): id.add(ch)
-          discard parser.nextMatch(idDelim)
-          lastElement.attr("id", id)
+        if (let ch = parser.get(); parser.nextMatch(IdStarts)):
+          lastElement.attr("id", parser.parseId(ch))
         lastElement.add(parseSingleLine(parser))
       of '*', '-', '+':
         if parser.nextMatch(Whitespace, offset = 1):
           lastElement = newElem(ul)
           let item = newElem(li)
           item.add(parseSingleLine(parser))
+          lastElement.add(item)
+        elif parser.nextMatch(IdStarts, offset = 1):
+          lastElement = newElem(ul)
+          var item = newElem(li)
+          item.attr("id", parser.parseId(parser.get(-1)))
+          item.content = parseSingleLine(parser)
           lastElement.add(item)
         else:
           lastElement = newElem(p, parseLine(parser))
@@ -622,7 +642,9 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
         while parser.nextMatch(Digits): discard
         if parser.nextMatch('.'):
           lastElement = newElem(ol)
-          let item = newElem(li)
+          var item = newElem(li)
+          if (let ch = parser.get(); parser.nextMatch(IdStarts)):
+            item.attr("id", parser.parseId(ch))
           item.add(parseSingleLine(parser))
           lastElement.add(item)
         else:
@@ -631,6 +653,8 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
       of '>':
         lastElement = newElem(blockquote)
         inc parser.pos
+        if (let ch = parser.get(); parser.nextMatch(IdStarts)):
+          lastElement.attr("id", parser.parseId(ch))
         lastElement.add(newElem(p, parseSingleLine(parser)))
       of '[':
         # reference link

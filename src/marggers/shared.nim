@@ -41,7 +41,7 @@ template moveCompat*(x: untyped): untyped =
   else:
     move(x)
 
-when not defined(nimscript):
+when not defined(nimscript): # breaks nimscript for some reason
   func contains*[I](arr: static array[I, string], x: string): bool {.inline.} =
     ## More efficient version of `contains` for static arrays of strings
     ## using `case`
@@ -58,7 +58,8 @@ type
     ul, ol, li, blockquote,
     sup, sub, em, strong, pre, code, u, s,
     img, input, a,
-    video, audio
+    video, audio,
+    #otherTag, text
 
   MarggersElement* = ref object
     ## An individual node.
@@ -71,10 +72,17 @@ type
     case isText*: bool
     of true:
       str*: NativeString
+        ## Text of a text element.
+        ## Can contain HTML, escaping chars must be done beforehand.
     else:
       tag*: KnownTags
+        ## The known tag of an HTML element.
+        ## If an unknown tag must be used for an element,
+        ## consider using a text node for now.
       attrs*: OrderedTable[NativeString, NativeString]
+        ## Attributes of an HTML element.
       content*: seq[MarggersElement]
+        ## Inner HTML elements of an HTML element.
   
   MarggersParserObj* = object
     ## A parser object.
@@ -82,8 +90,15 @@ type
     pos*: int
     linkReferrers*: Table[NativeString, seq[MarggersElement]]
       ## Table of link references to elements that use the reference.
-      ## After parsing is done, if this is not empty, then some references
-      ## were left unset.
+      ## During parsing, when a reference link is found, it will modify
+      ## elements that use the reference and add them the link.
+      ## After parsing is done, if there are elements left in this table,
+      ## then some references were left unset. 
+    codeBlockLanguageHandler*: proc (language: NativeString, codeBlock: MarggersElement)
+      ## Callback to use when a code block has a language attached.
+      ## `codeBlock` is modifiable.
+      ## 
+      ## If nil, any language name will be passed directly to the code block.
 
 const parserUseObj = defined(marggersParserUseObj)
 
@@ -95,6 +110,9 @@ else:
     ## To change to non-ref, do `-d:marggersParserUseObj`.
 
 type MarggersParserVar* = var MarggersParser
+
+func newMarggersParser*(text: NativeString): MarggersParser {.inline.} =
+  MarggersParser(str: text, pos: 0)
 
 func newStr*(s: NativeString): MarggersElement =
   ## Creates a new text node with text `s`.

@@ -32,6 +32,10 @@ proc parseMarggers*(text: NativeString): seq[MarggersElement] =
   var parser = MarggersParser(str: text, pos: 0)
   result = parseTopLevel(parser)
 
+proc parseMarggers*(parser: MarggersParserVar): seq[MarggersElement] =
+  ## Same as `parseMarggers`, but uses an already initialized parser.
+  result = parseTopLevel(parser)
+
 proc parseMarggers*(text: string | cstring): seq[MarggersElement] =
   ## Alias of parseMarggers that takes any string as the argument.
   result = parseMarggers(NativeString(text))
