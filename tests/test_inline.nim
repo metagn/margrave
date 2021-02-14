@@ -1,4 +1,12 @@
-import marggers, module_bridge
+import marggers
+
+when (compiles do: import nimbleutils/bridge):
+  # nimscript support
+  import nimbleutils/bridge
+else:
+  import unittest
+  template runTests*(body) = body
+
 from strutils import strip, Whitespace
 
 proc becomes*(marggers, html: NativeString): bool =
