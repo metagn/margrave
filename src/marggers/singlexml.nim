@@ -84,7 +84,8 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
 proc parseXml*(text: string, i: int): (bool, int) =
   ## Parse `text` starting with index `i` as a single XML node
   ## and return a tuple with a boolean indicating success and
-  ## an integer indicating the index where the XML ends (inclusive).
+  ## an integer indicating the index where parsing XML failed,
+  ## or ended (so not inclusive).
   var errors: seq[string]
   var x: XmlParser
   let stream = newStringStream(text)
@@ -106,4 +107,4 @@ proc parseXml*(text: string, i: int): (bool, int) =
     else:
       result[0] = false
       break
-  result[1] = x.bufpos
+  result[1] = i + x.bufpos

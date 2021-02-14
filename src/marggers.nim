@@ -25,16 +25,16 @@ import marggers/[parser, shared]
 
 export shared
 
+proc parseMarggers*(parser: MarggersParserVar): seq[MarggersElement] =
+  ## Parses marggers with an already initialized parser.
+  result = parseTopLevel(parser)
+
 proc parseMarggers*(text: NativeString): seq[MarggersElement] =
   ## Parses a string of text in marggers and translates it to HTML line by line.
   ## Result is a sequence of MarggersElements, to simply generate HTML with no need for readability
   ## turn these all into strings with ``$`` and join them with "".
-  var parser = MarggersParser(str: text, pos: 0)
-  result = parseTopLevel(parser)
-
-proc parseMarggers*(parser: MarggersParserVar): seq[MarggersElement] =
-  ## Same as `parseMarggers`, but uses an already initialized parser.
-  result = parseTopLevel(parser)
+  var parser = newMarggersParser(text)
+  result = parseMarggers(parser)
 
 proc parseMarggers*(text: string | cstring): seq[MarggersElement] =
   ## Alias of parseMarggers that takes any string as the argument.

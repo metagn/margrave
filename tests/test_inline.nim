@@ -64,7 +64,9 @@ const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
   "a^b c^d e ^ f g^ h i ^j k^l": "<p>a<sup>b</sup> c<sup>d</sup> e ^ f g^ h i ^j k<sup>l</sup></p>",
 
   # restricted sub:
-  "[a] b [c] d[e] f[g] ": "<p>[a] b [c] d<sub>e</sub> f<sub>g</sub> </p>"
+  "[a] b [c] d[e] f[g] ": "<p>[a] b [c] d<sub>e</sub> f<sub>g</sub> </p>",
+
+  "1 > 3": "<p>1 &gt; 3</p>",
 }
 
 iterator inlineTests*: tuple[marggers, html: NativeString] =

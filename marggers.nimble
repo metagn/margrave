@@ -1,4 +1,4 @@
-version       = "0.2.6"
+version       = "0.2.7"
 author        = "hlaaftana"
 description   = "markdown dialect"
 license       = "MIT"
@@ -22,6 +22,6 @@ task docs, "build docs for all modules":
 
 task tests, "run tests for multiple backends":
   when declared(runTests):
-    runTests(backends = {c, js, nims})
+    runTests(backends = {c, js, nims}, optionCombos = @[""])
   else:
     echo "tests task not implemented, need nimbleutils"

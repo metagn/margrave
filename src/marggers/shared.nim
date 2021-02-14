@@ -61,14 +61,14 @@ type
     video, audio,
     #otherTag, text
 
-  MarggersElement* = ref object
+  MarggersElement* {.acyclic.} = ref object
     ## An individual node.
     ## 
     ## Can be text, or an HTML element.
     ## 
     ## HTML element contains tag, attributes, and sequence of nodes. 
-    # TODO: replace with DOM element in JS
-    # maybe object variant on tag
+    # maybe replace with DOM element in JS
+    # maybe object variant on tag, would be bad on JS
     case isText*: bool
     of true:
       str*: NativeString
@@ -88,17 +88,32 @@ type
     ## A parser object.
     str*: NativeString # would be openarray[char] if cstring was compatible
     pos*: int
+    topLevelLast*: MarggersElement
+      ## Last element parsed at top level.
+      ## 
+      ## Nil if the last element is complete, i.e. 2 newlines were parsed.
     linkReferrers*: Table[NativeString, seq[MarggersElement]]
       ## Table of link references to elements that use the reference.
       ## During parsing, when a reference link is found, it will modify
       ## elements that use the reference and add them the link.
       ## After parsing is done, if there are elements left in this table,
-      ## then some references were left unset. 
-    codeBlockLanguageHandler*: proc (language: NativeString, codeBlock: MarggersElement)
+      ## then some references were left unset.
+    inlineHtmlHandler*: proc (str: NativeString, i: int): (bool, int)
+      ## Should parse a single HTML element starting at `i` in `str`,
+      ## returning `(true, pos)` if an HTML element has been correctly parsed
+      ## and `pos` is the immediate index after it or `(false, _)` if it has
+      ## not been correctly parsed.
+      ## 
+      ## See `singlexml.parseXml <singlexml.html#parseXml,string,int>`_.
+    codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString)
       ## Callback to use when a code block has a language attached.
       ## `codeBlock` is modifiable.
       ## 
       ## If nil, any language name will be passed directly to the code block.
+    setLinkHandler*: proc (element: MarggersElement, link: NativeString)
+      ## Handles when an element gets a link. `element` is modifiable.
+      ## 
+      ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
 
 const parserUseObj = defined(marggersParserUseObj)
 
@@ -130,6 +145,14 @@ func paragraphIfText*(elem: MarggersElement): MarggersElement =
   else:
     elem
 
+func escapeHtmlChar*(ch: char): NativeString =
+  ## Escapes &, < and > for html.
+  case ch
+  of '<': NativeString("&lt;")
+  of '>': NativeString("&gt;")
+  of '&': NativeString("&amp;")
+  else: toNativeString(ch)
+
 proc attr*(elem: MarggersElement, key: NativeString): NativeString =
   ## Gets attribute of element
   elem.attrs[key]
@@ -137,6 +160,18 @@ proc attr*(elem: MarggersElement, key: NativeString): NativeString =
 proc attr*(elem: MarggersElement, key, val: NativeString) =
   ## Adds attribute to element
   elem.attrs[key] = val
+
+proc attrEscaped*(elem: MarggersElement, key, val: NativeString) =
+  ## Adds attribute to element escaped
+  var esc =
+    when NativeString is string:
+      newStringOfCap(val.len)
+    else:
+      NativeString""
+  for v in val:
+    if v == '"': esc.add NativeString"&quot;"
+    else: esc.add v
+  elem.attr(key, esc)
 
 proc hasAttr*(elem: MarggersElement, key: NativeString): bool =
   ## Checks if element has attribute
@@ -150,7 +185,7 @@ proc style*(elem: MarggersElement, style: NativeString) =
   ## Adds style to element
   elem.attr("style", style)
 
-proc setLink*(elem: MarggersElement, link: NativeString) =
+proc setLinkDefault*(elem: MarggersElement, link: NativeString) =
   ## Sets element link.
   ## 
   ## If `elem` has tag `a`, sets the `href` attribute to `link`.
@@ -159,10 +194,9 @@ proc setLink*(elem: MarggersElement, link: NativeString) =
   ## and if link ends with .mp3, .oga, .ogg, .wav or .flac, `elem` will become
   ## an audio element; then the `src` attribute will be set to `link`.
   ## Other tags for `elem` also set the `src` attribute to `link`.
-  let link = link.strip()
   case elem.tag
   of a:
-    elem.attr("href", link)
+    elem.attrEscaped("href", link)
   of img:
     if (link.len >= 4 and link[^4 .. ^1] in [NativeString".mp4", ".m4v", ".mov", ".ogv"]) or
       (link.len >= 5 and link[^5 .. ^1] == ".webm"): 
@@ -175,9 +209,16 @@ proc setLink*(elem: MarggersElement, link: NativeString) =
       var altText: NativeString
       if elem.attrs.pop("alt", altText):
         elem.content = @[newStr(altText)]
-    elem.attr("src", link)
+    elem.attrEscaped("src", link)
   else:
-    elem.attr("src", link)
+    elem.attrEscaped("src", link)
+
+proc setLink*(parser: MarggersParser, elem: MarggersElement, link: NativeString) =
+  ## Calls `setLink` if no `setLinkHandler` callback, otherwise calls callback
+  if not parser.setLinkHandler.isNil:
+    parser.setLinkHandler(elem, link)
+  else:
+    setLinkDefault(elem, link)
 
 const EmptyTags* = {br, img, input}
 
@@ -187,41 +228,34 @@ func isEmpty*(tag: KnownTags): bool {.inline.} =
   of EmptyTags: true
   else: false
 
-template `[]`*(elem: MarggersElement, i: int): MarggersElement =
+func `[]`*(elem: MarggersElement, i: int): MarggersElement =
   ## Indexes `elem.content`.
   elem.content[i]
 
-template `[]`*(elem: MarggersElement, i: BackwardsIndex): MarggersElement =
+func `[]`*(elem: MarggersElement, i: BackwardsIndex): MarggersElement =
   ## Indexes `elem.content`.
   elem.content[i]
 
-template `[]=`*(elem: MarggersElement, i: int, el: MarggersElement) =
+func `[]=`*(elem: MarggersElement, i: int, el: MarggersElement) =
   ## Indexes `elem.content`.
   elem.content[i] = el
 
-template `[]=`*(elem: MarggersElement, i: BackwardsIndex, el: MarggersElement) =
+func `[]=`*(elem: MarggersElement, i: BackwardsIndex, el: MarggersElement) =
   ## Indexes `elem.content`.
   elem.content[i] = el
 
-template add*(elem, cont: MarggersElement) =
+func add*(elem, cont: MarggersElement) =
   ## Adds to `elem.content`.
+  # was previously template, this broke vM
   elem.content.add(cont)
 
-template add*(elem: MarggersElement, cont: seq[MarggersElement]) =
+func add*(elem: MarggersElement, cont: seq[MarggersElement]) =
   ## Appends nodes to `elem.content`.
   elem.content.add(cont)
 
-template add*(elem: MarggersElement, str: NativeString) =
+func add*(elem: MarggersElement, str: NativeString) =
   ## Adds a text node to `elem.content`.
   elem.content.add(newStr(str))
-
-func escapeHtmlChar*(ch: char): NativeString =
-  ## Escapes &, < and > for html.
-  case ch
-  of '<': NativeString("&lt;")
-  of '>': NativeString("&gt;")
-  of '&': NativeString("&amp;")
-  else: toNativeString(ch)
 
 func `$`*(elem: MarggersElement): string =
   ## Outputs a marggers element as HTML.
@@ -325,6 +359,12 @@ func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0, len: Na
 func peekMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool {.inline.} =
   parser.anyNext(offset + pat.len - 1) and parser.get(offset, pat.len) == pat
 
+func peekMatch*(parser: MarggersParser, pat: openarray[string], offset: int = 0): bool {.inline.} =
+  result = false
+  for p in pat:
+    if parser.peekMatch(p, offset):
+      return true
+
 func peekPrevMatch*(parser: MarggersParser, pat: char | set[char], offset: int = 0): bool {.inline.} =
   parser.anyPrev(offset) and parser.peekMatch(pat, offset = offset - 1)
 
@@ -368,6 +408,12 @@ func nextMatch*(parser: MarggersParserVar, pat: set[char], offset: int = 0, len:
 func nextMatch*(parser: MarggersParserVar, pat: string, offset: int = 0): bool =
   result = peekMatch(parser, pat, offset)
   if result: parser.pos += offset + pat.len
+
+func nextMatch*(parser: MarggersParserVar, pat: openarray[string], offset: int = 0): bool =
+  result = false
+  for p in pat:
+    if parser.nextMatch(p, offset):
+      return true
 
 macro matchNext*(parser: MarggersParserVar, branches: varargs[untyped]) =
   result = newTree(nnkIfExpr)
