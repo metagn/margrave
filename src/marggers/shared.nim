@@ -83,51 +83,122 @@ type
         ## Attributes of an HTML element.
       content*: seq[MarggersElement]
         ## Inner HTML elements of an HTML element.
-  
-  MarggersParserObj* = object
-    ## A parser object.
-    str*: NativeString # would be openarray[char] if cstring was compatible
-    pos*: int
-    topLevelLast*: MarggersElement
-      ## Last element parsed at top level.
-      ## 
-      ## Nil if the last element is complete, i.e. 2 newlines were parsed.
-    linkReferrers*: Table[NativeString, seq[MarggersElement]]
-      ## Table of link references to elements that use the reference.
-      ## During parsing, when a reference link is found, it will modify
-      ## elements that use the reference and add them the link.
-      ## After parsing is done, if there are elements left in this table,
-      ## then some references were left unset.
-    inlineHtmlHandler*: proc (str: NativeString, i: int): (bool, int)
-      ## Should parse a single HTML element starting at `i` in `str`,
-      ## returning `(true, pos)` if an HTML element has been correctly parsed
-      ## and `pos` is the immediate index after it or `(false, _)` if it has
-      ## not been correctly parsed.
-      ## 
-      ## See `singlexml.parseXml <singlexml.html#parseXml,string,int>`_.
-    codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString)
-      ## Callback to use when a code block has a language attached.
-      ## `codeBlock` is modifiable.
-      ## 
-      ## If nil, any language name will be passed directly to the code block.
-    setLinkHandler*: proc (element: MarggersElement, link: NativeString)
-      ## Handles when an element gets a link. `element` is modifiable.
-      ## 
-      ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
 
+const useOptions* = defined(marggersUseOptions)
 const parserUseObj = defined(marggersParserUseObj)
 
-when parserUseObj:
-  type MarggersParser* = MarggersParserObj
+when useOptions:
+  type
+    MarggersParserOptions* {.byref.} = object
+      curlyNoHtmlEscape*: bool
+    
+    MarggersParserObj*[CompileOptions: static MarggersParserOptions] = object
+      ## A parser object.
+      str*: NativeString # would be openarray[char] if cstring was compatible
+      pos*: int
+      topLevelLast*: MarggersElement
+        ## Last element parsed at top level.
+        ## 
+        ## Nil if the last element is complete, i.e. 2 newlines were parsed.
+      linkReferrers*: Table[NativeString, seq[MarggersElement]]
+        ## Table of link references to elements that use the reference.
+        ## During parsing, when a reference link is found, it will modify
+        ## elements that use the reference and add them the link.
+        ## After parsing is done, if there are elements left in this table,
+        ## then some references were left unset.
+      inlineHtmlHandler*: proc (str: NativeString, i: int): (bool, int)
+        ## Should parse a single HTML element starting at `i` in `str`,
+        ## returning `(true, pos)` if an HTML element has been correctly parsed
+        ## and `pos` is the immediate index after it or `(false, _)` if it has
+        ## not been correctly parsed.
+        ## 
+        ## See `singlexml.parseXml <singlexml.html#parseXml,string,int>`_.
+      codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString)
+        ## Callback to use when a code block has a language attached.
+        ## `codeBlock` is modifiable.
+        ## 
+        ## If nil, any language name will be passed directly to the code block.
+      setLinkHandler*: proc (element: MarggersElement, link: NativeString)
+        ## Handles when an element gets a link. `element` is modifiable.
+        ## 
+        ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
+      runtimeOptions*: MarggersParserOptions
+
+  when parserUseObj:
+    type MarggersParser*[O: static MarggersParserOptions] =
+      MarggersParserObj[O]
+  else:
+    type MarggersParser*[O: static MarggersParserOptions] =
+      ref MarggersParserObj[O]
+      ## Reference version of MarggersParserObj.
+      ## To change to non-ref, do `-d:marggersParserUseObj`.
+
+  type MarggersParserVar*[O: static MarggersParserOptions] =
+    var MarggersParser[O]
+
+  func defaultParserOptions*(): MarggersParserOptions =
+    MarggersParserOptions()
+  
+  template compileOptions*(parser: MarggersParser): untyped =
+    typeof(parser).CompileOptions
+
+  func newMarggersParser*[O: static MarggersParserOptions](text: NativeString):
+    MarggersParser[O] {.inline.} =
+    MarggersParser[O](str: text, pos: 0)
+  
+  template withOptions*[O](parser: MarggersParser[O], cond, body, elseBody): untyped =
+    when (block:
+      const options {.inject.} = O
+      cond):
+      body
+    else:
+      if (let options {.inject.} = parser.runtimeOptions; cond):
+        body
+      else: elseBody
 else:
-  type MarggersParser* = ref MarggersParserObj
-    ## Reference version of MarggersParserObj.
-    ## To change to non-ref, do `-d:marggersParserUseObj`.
+  type
+    MarggersParserObj* = object
+      ## A parser object.
+      str*: NativeString # would be openarray[char] if cstring was compatible
+      pos*: int
+      topLevelLast*: MarggersElement
+        ## Last element parsed at top level.
+        ## 
+        ## Nil if the last element is complete, i.e. 2 newlines were parsed.
+      linkReferrers*: Table[NativeString, seq[MarggersElement]]
+        ## Table of link references to elements that use the reference.
+        ## During parsing, when a reference link is found, it will modify
+        ## elements that use the reference and add them the link.
+        ## After parsing is done, if there are elements left in this table,
+        ## then some references were left unset.
+      inlineHtmlHandler*: proc (str: NativeString, i: int): (bool, int)
+        ## Should parse a single HTML element starting at `i` in `str`,
+        ## returning `(true, pos)` if an HTML element has been correctly parsed
+        ## and `pos` is the immediate index after it or `(false, _)` if it has
+        ## not been correctly parsed.
+        ## 
+        ## See `singlexml.parseXml <singlexml.html#parseXml,string,int>`_.
+      codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString)
+        ## Callback to use when a code block has a language attached.
+        ## `codeBlock` is modifiable.
+        ## 
+        ## If nil, any language name will be passed directly to the code block.
+      setLinkHandler*: proc (element: MarggersElement, link: NativeString)
+        ## Handles when an element gets a link. `element` is modifiable.
+        ## 
+        ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
 
-type MarggersParserVar* = var MarggersParser
+  when parserUseObj:
+    type MarggersParser* = MarggersParserObj
+  else:
+    type MarggersParser* = ref MarggersParserObj
+      ## Reference version of MarggersParserObj.
+      ## To change to non-ref, do `-d:marggersParserUseObj`.
 
-func newMarggersParser*(text: NativeString): MarggersParser {.inline.} =
-  MarggersParser(str: text, pos: 0)
+  type MarggersParserVar* = var MarggersParser
+
+  func newMarggersParser*(text: NativeString): MarggersParser {.inline.} =
+    MarggersParser(str: text, pos: 0)
 
 func newStr*(s: NativeString): MarggersElement =
   ## Creates a new text node with text `s`.
@@ -372,9 +443,13 @@ func peekPrevMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool 
   parser.anyPrev(offset - pat.len) and parser.peekMatch(pat, offset = offset - pat.len)
       
 func prevWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  when useOptions:
+    bind Whitespace
   parser.noPrev(offset) or parser.peekPrevMatch(Whitespace, offset)
 
 func nextWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+  when useOptions:
+    bind Whitespace
   parser.noNext(offset) or parser.peekMatch(Whitespace, offset = offset + 1)
 
 func surroundedWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =

@@ -1,17 +1,4 @@
-import marggers, strutils
-
-when (compiles do: import nimbleutils/bridge):
-  # nimscript & js files support
-  import nimbleutils/bridge
-else:
-  import unittest, os
-  template runTests*(body) = body
-  iterator files*(dir: string): tuple[noDir, withDir: string] =
-    for (kind, file) in walkDir(dir, relative = true):
-      if kind == pcFile:
-        yield (file, dir / file)
-  template read*(path: string): string = readFile(path)
-  template write*(path, data: string) = writeFile(path, data)
+import module_bridge, marggers, strutils
 
 proc joinedParse*(str: string): string =
   for p in str.parseMarggers:

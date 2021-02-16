@@ -1,26 +1,4 @@
-import marggers
-
-when (compiles do: import nimbleutils/bridge):
-  # nimscript support
-  import nimbleutils/bridge
-else:
-  import unittest
-  template runTests*(body) = body
-
-from strutils import strip, Whitespace
-
-proc becomes*(marggers, html: NativeString): bool =
-  var i = 0
-  for elem in parseMarggers(marggers):
-    let el = strip($elem, chars = Whitespace)
-    while html[i] in Whitespace: inc i
-    if i + el.len <= html.len and html[i ..< i + el.len] == el:
-      i += el.len
-    else:
-      checkpoint("got element: " & $elem)
-      checkpoint("expected element: " & $html[i .. ^1])
-      return false
-  result = true
+import module_bridge, marggers
 
 # this behaves weird in nimscript, wrong strings are randomly matched together:
 const inlineTestTable*: seq[tuple[marggers, html: string]] = @{

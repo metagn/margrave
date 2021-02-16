@@ -24,11 +24,16 @@ proc parseCurly*(parser: MarggersParserVar): NativeString =
   ## If `-d:marggersCurlyNoHtmlEscape` is defined, initial `!` characters
   ## are ignored and no HTML chars are escaped.
   result = ""
-  const noHtmlEscapeConst = defined(marggersCurlyNoHtmlEscape)
+  const noHtmlEscapeConst =
+    when useOptions:
+      parser.compileOptions.curlyNoHtmlEscape
+    else:
+      defined(marggersCurlyNoHtmlEscape)
   when noHtmlEscapeConst:
     discard parser.nextMatch('!')
   else:
-    let noHtmlEscape = parser.nextMatch('!')
+    let noHtmlEscape = parser.nextMatch('!') or
+      (when useOptions: parser.runtimeOptions.curlyNoHtmlEscape else: false)
   var
     opencurlys = 1
     escaped = false
