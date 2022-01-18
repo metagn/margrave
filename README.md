@@ -1,9 +1,9 @@
 # marggers
 
-Dialect of markdown that outputs to HTML. Not stable. [Try in browser](https://hlaaftana.github.io/marggers/browser/converter.html).
-[Docs](https://hlaaftana.github.io/marggers/docs/marggers.html)
+Dialect of markdown that outputs to HTML. Not stable. [Try in browser](https://metagn.github.io/marggers/browser/converter.html).
+[Docs](https://metagn.github.io/marggers/docs/marggers.html)
 
-Uses [nimbleutils](https://github.com/hlaaftana/nimbleutils) to test for
+Uses [nimbleutils](https://github.com/metagn/nimbleutils) to test for
 C, JS and NimScript (so also VM) and build docs.
 
 Input file ref.mrg:

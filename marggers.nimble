@@ -1,5 +1,5 @@
 version       = "0.2.7"
-author        = "hlaaftana"
+author        = "metagn"
 description   = "markdown dialect"
 license       = "MIT"
 srcDir        = "src"
@@ -16,7 +16,7 @@ task tools, "builds tools, only browser converter for now":
 
 task docs, "build docs for all modules":
   when declared(buildDocs):
-    buildDocs(gitUrl = "https://github.com/hlaaftana/marggers")
+    buildDocs(gitUrl = "https://github.com/metagn/marggers")
   else:
     echo "docs task not implemented, need nimbleutils"
 
