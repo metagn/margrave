@@ -1,8 +1,30 @@
 import macros, tables
 
-from strutils import Whitespace
+const
+  marggersParserUseObj* {.booldefine.} = false
+    ## Use `object` for `MarggersParser` instead of `ref object`.
+  marggersNoInlineHtml* {.booldefine.} = false
+    ## Define this to disable inline HTML at compile time completely,
+    ## to circumvent the standard library XML parser dependency.
+    ## This is overriden by `MarggersParser.inlineHtmlHandler`.
+  marggersCurlyNoHtmlEscape* {.booldefine.} = false
+    ## Define this to disable HTML escaping inside curly brackets
+    ## (normally only formatting is disabled).
+    ## If `marggersUseOptions` is enabled, this is overriden by
+    ## `MarggersParserOptions.curlyNoHtmlEscape`
+  marggersUseOptions* {.booldefine.} = false
+    ## Define this to use a generic parser with a static options object
+    ## argument instead of defines for compile time specialization of parser
+    ## behavior. There is also a runtime version of this object. This is not
+    ## the default as there is the risk of encountering compiler bugs.
+  marggersSingleLineStaticBool* {.booldefine.} = false
+    ## Possible minor optimization. Not guaranteed to be faster.
+  marggersDelimedUseSubstrs* {.booldefine.} = false
+    ## Possible minor optimization. Not guaranteed to be faster.
 
 when defined(js) and not defined(nimdoc):
+  import strutils except strip
+
   type NativeString* = cstring
 
   func toCstring*(y: char): cstring {.importc: "String.fromCharCode".}
@@ -23,7 +45,7 @@ when defined(js) and not defined(nimdoc):
 
   template toNativeString*(x: char): NativeString = toCstring(x)
 else:
-  from strutils import strip
+  import strutils
 
   type NativeString* = string
     ## Most convenient string type to use for each backend.
@@ -84,15 +106,12 @@ type
       content*: seq[MarggersElement]
         ## Inner HTML elements of an HTML element.
 
-const useOptions* = defined(marggersUseOptions)
-const parserUseObj = defined(marggersParserUseObj)
-
-when useOptions:
+when marggersUseOptions:
   type
     MarggersParserOptions* {.byref.} = object
       curlyNoHtmlEscape*: bool
     
-    MarggersParserObj*[CompileOptions: static MarggersParserOptions] = object
+    MarggersParserObj*[CompileOptions: static MarggersParserOptions] {.byref.} = object
       ## A parser object.
       str*: NativeString # would be openarray[char] if cstring was compatible
       pos*: int
@@ -124,7 +143,7 @@ when useOptions:
         ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
       runtimeOptions*: MarggersParserOptions
 
-  when parserUseObj:
+  when marggersParserUseObj:
     type MarggersParser*[O: static MarggersParserOptions] =
       MarggersParserObj[O]
   else:
@@ -188,17 +207,37 @@ else:
         ## 
         ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
 
-  when parserUseObj:
+  when marggersParserUseObj:
     type MarggersParser* = MarggersParserObj
+
+    type MarggersParserVar* = var MarggersParser
   else:
     type MarggersParser* = ref MarggersParserObj
       ## Reference version of MarggersParserObj.
       ## To change to non-ref, do `-d:marggersParserUseObj`.
 
-  type MarggersParserVar* = var MarggersParser
+    when defined(js) or defined(nimscript):
+      type MarggersParserVar* = MarggersParser
+    else:
+      type MarggersParserVar* = var MarggersParser
 
   func newMarggersParser*(text: NativeString): MarggersParser {.inline.} =
     MarggersParser(str: text, pos: 0)
+
+template compileOption*(parser: MarggersParser, option: untyped): bool =
+  when marggersUseOptions:
+    parser.compileOptions.`option`
+  else:
+    when declared(`marggers option`):
+      `marggers option`
+    else:
+      false
+
+template runtimeOption*(parser: MarggersParser, option: untyped): bool =
+  when marggersUseOptions:
+    parser.runtimeOptions.`option`
+  else:
+    false
 
 func newStr*(s: NativeString): MarggersElement =
   ## Creates a new text node with text `s`.
@@ -443,12 +482,12 @@ func peekPrevMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool 
   parser.anyPrev(offset - pat.len) and parser.peekMatch(pat, offset = offset - pat.len)
       
 func prevWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
-  when useOptions:
+  when marggersUseOptions:
     bind Whitespace
   parser.noPrev(offset) or parser.peekPrevMatch(Whitespace, offset)
 
 func nextWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
-  when useOptions:
+  when marggersUseOptions:
     bind Whitespace
   parser.noNext(offset) or parser.peekMatch(Whitespace, offset = offset + 1)
 

@@ -21,7 +21,7 @@ proc becomes*(marggers: MarggersParserVar | NativeString, html: NativeString): b
   for elem in parseMarggers(marggers):
     let el = strip($elem, chars = Whitespace)
     while html[i] in Whitespace: inc i
-    if i + el.len <= html.len and html[i ..< i + el.len] == el:
+    if i + el.len <= html.len and html[i ..< i + el.len] == NativeString(el):
       i += el.len
     else:
       checkpoint("got element: " & $elem)

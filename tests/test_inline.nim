@@ -48,8 +48,12 @@ const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
 }
 
 iterator inlineTests*: tuple[marggers, html: NativeString] =
-  for m, h in inlineTestTable.items:
-    yield (NativeString(m), NativeString(h))
+  when defined(nimscript): # other branch gives sigsegv
+    for x in inlineTestTable.items:
+      yield x
+  else:
+    for m, h in inlineTestTable.items:
+      yield (NativeString(m), NativeString(h))
 
 runTests:
   test "do inline tests":

@@ -1,20 +1,13 @@
 import strutils, tables
 import ./shared
 
-const noInlineHtml = defined(marggersNoInlineHtml)
-
-when not noInlineHtml:
+when not marggersNoInlineHtml:
   import ./singlexml
 
-const singleLineStaticBool = defined(marggersSingleLineStaticBool)
-
-when singleLineStaticBool:
-  type SingleLineBool* = static bool
+when marggersSingleLineStaticBool:
+  type SingleLineBool = static bool
 else:
-  type SingleLineBool* = bool
-    ## The type of the argument `singleLine` in parse procs.
-    ## When `marggersSingleLineStaticBool` is defined, this will be `static`.
-    ## This could lead to slightly faster code, but a larger binary.
+  type SingleLineBool = bool
 
 proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLineBool): MarggersElement
 
@@ -24,16 +17,11 @@ proc parseCurly*(parser: MarggersParserVar): NativeString =
   ## If `-d:marggersCurlyNoHtmlEscape` is defined, initial `!` characters
   ## are ignored and no HTML chars are escaped.
   result = ""
-  const noHtmlEscapeConst =
-    when useOptions:
-      parser.compileOptions.curlyNoHtmlEscape
-    else:
-      defined(marggersCurlyNoHtmlEscape)
+  const noHtmlEscapeConst = parser.compileOption(curlyNoHtmlEscape)
   when noHtmlEscapeConst:
     discard parser.nextMatch('!')
   else:
-    let noHtmlEscape = parser.nextMatch('!') or
-      (when useOptions: parser.runtimeOptions.curlyNoHtmlEscape else: false)
+    let noHtmlEscape = parser.nextMatch('!') or parser.runtimeOption(curlyNoHtmlEscape)
   var
     opencurlys = 1
     escaped = false
@@ -152,10 +140,9 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
   for ch in parser.nextChars:
     assert elems[^1].isText
     if not escaped:
-      const useSubstrs = defined(marggersDelimedUseSubstrs)
       let initialPos = parser.pos
 
-      when useSubstrs:
+      when marggersDelimedUseSubstrs:
         var matchLen: int
         let maxIndexAfter3 = min(parser.pos + 3, parser.str.len - 1)
         var substrs: array[4, NativeString]
@@ -247,7 +234,7 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
 
       matchNext parser:
       elif (
-        when singleLineStaticBool:
+        when marggersSingleLineStaticBool:
           when singleLine: parser.nextMatch("\r\n") or parser.nextMatch("\n")
           else: parser.nextMatch("\r\n\r\n") or parser.nextMatch("\n\n")
         else:
@@ -292,7 +279,7 @@ proc parseDelimed*(parser: MarggersParserVar, delim: string, singleLine: SingleL
           if not parser.inlineHtmlHandler.isNil:
             parser.inlineHtmlHandler(parser.str, parser.pos)
           else:
-            when noInlineHtml:
+            when marggersNoInlineHtml:
               (false, 0)
             else:
               parseXml($parser.str, parser.pos)
@@ -457,7 +444,7 @@ proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLin
           if not image and link.len == 0 and textElems.len == 1 and textElems[0].isText:
             moveCompat(textElems[0].str)
           else:
-            link
+            NativeString(link)
         )
         result = MarggersElement(isText: false)
         if image:
@@ -468,7 +455,7 @@ proc parseBracket*(image: bool, parser: MarggersParserVar, singleLine: SingleLin
           result.tag = a
           result.content = textElems
         if tip.len != 0:
-          result.attrEscaped("title", tip)
+          result.attrEscaped("title", NativeString(tip))
         parser.setLink(result, realLink)
         return
       else:
@@ -674,8 +661,8 @@ proc parseTopLevel*(parser: MarggersParserVar): seq[MarggersElement] =
             correct): # smooth
           for el in parser.linkReferrers.getOrDefault(refName, @[]):
             if tip.len != 0:
-              el.attrEscaped("title", tip)
-            parser.setLink(el, link.strip())
+              el.attrEscaped("title", NativeString(tip))
+            parser.setLink(el, NativeString(link.strip()))
         else:
           parser.pos = initialPos
           parser.topLevelLast = newElem(p, parseLine(parser))

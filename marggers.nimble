@@ -1,4 +1,4 @@
-version       = "0.2.7"
+version       = "0.2.8"
 author        = "metagn"
 description   = "markdown dialect"
 license       = "MIT"
@@ -8,15 +8,17 @@ srcDir        = "src"
 
 requires "nim >= 1.0.4"
 
-when (compiles do: import nimbleutils):
-  import nimbleutils
+when (NimMajor, NimMinor) >= (1, 4):
+  when (compiles do: import nimbleutils):
+    import nimbleutils
+    # https://github.com/metagn/nimbleutils
 
 task tools, "builds tools, only browser converter for now":
   exec "nim js -d:danger browser/converter"
 
 task docs, "build docs for all modules":
   when declared(buildDocs):
-    buildDocs(gitUrl = "https://github.com/metagn/marggers")
+    buildDocs(gitUrl = "https://github.com/metagn/marggers", extraOptions = "--path:src")
   else:
     echo "docs task not implemented, need nimbleutils"
 

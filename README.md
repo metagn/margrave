@@ -1,10 +1,11 @@
 # marggers
 
-Dialect of markdown that outputs to HTML. Not stable. [Try in browser](https://metagn.github.io/marggers/browser/converter.html).
+Tweakable parser for a dialect of markdown that generates an HTML-like
+representation, which can be converted to HTML. Not stable.
+[Try in browser](https://metagn.github.io/marggers/browser/converter.html).
 [Docs](https://metagn.github.io/marggers/docs/marggers.html)
 
-Uses [nimbleutils](https://github.com/metagn/nimbleutils) to test for
-C, JS and NimScript (so also VM) and build docs.
+Tested for C, JS and NimScript (so also VM). 
 
 Input file ref.mrg:
 

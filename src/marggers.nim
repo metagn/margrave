@@ -34,7 +34,7 @@ proc parseMarggers*(text: NativeString): seq[MarggersElement] =
   ## Result is a sequence of MarggersElements, to simply generate HTML with no need for readability
   ## turn these all into strings with ``$`` and join them with "".
   var parser =
-    when useOptions:
+    when marggersUseOptions:
       newMarggersParser[defaultParserOptions()](text)
     else:
       newMarggersParser(text)
