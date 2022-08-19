@@ -21,32 +21,43 @@
 ## This switch is available on all backends. You can still embed HTML inside
 ## curly braces.
 
-import marggers/[parser, shared]
+import marggers/[common, element, parser, parser/defs]
 
-export shared
+export MarggersElement, element.`$`, defs
 
-proc parseMarggers*(parser: MarggersParserVar): seq[MarggersElement] =
+proc parseMarggers*(parser: var MarggersParser,
+  staticOptions: static MarggersOptions = defaultParserOptions): seq[MarggersElement] =
   ## Parses marggers with an already initialized parser.
-  result = parseTopLevel(parser)
+  result = parseTopLevel(parser, staticOptions)
 
-proc parseMarggers*(text: NativeString): seq[MarggersElement] =
+proc parseMarggers*(parser: ref MarggersParser,
+  staticOptions: static MarggersOptions = defaultParserOptions): seq[MarggersElement] =
+  ## Parses marggers with a reference to an already initialized parser.
+  result = parseTopLevel(parser[], staticOptions)
+
+proc parseMarggers*(text: sink NativeString,
+  options: MarggersOptions = defaultParserOptions,
+  staticOptions: static MarggersOptions = defaultParserOptions): seq[MarggersElement] =
   ## Parses a string of text in marggers and translates it to HTML line by line.
   ## Result is a sequence of MarggersElements, to simply generate HTML with no need for readability
   ## turn these all into strings with ``$`` and join them with "".
-  var parser =
-    when marggersUseOptions:
-      newMarggersParser[defaultParserOptions()](text)
-    else:
-      newMarggersParser(text)
-  result = parseMarggers(parser)
+  var parser = initMarggersParser(text)
+  parser.options = options
+  result = parseMarggers(parser, staticOptions)
 
-proc parseMarggers*(text: string | cstring): seq[MarggersElement] =
+proc parseMarggers*(text: sink (string | cstring),
+  options: MarggersOptions = defaultParserOptions,
+  staticOptions: static MarggersOptions = defaultParserOptions): seq[MarggersElement] =
   ## Alias of parseMarggers that takes any string as the argument.
-  result = parseMarggers(NativeString(text))
+  result = parseMarggers(NativeString(text), options, staticOptions)
 
-proc parseMarggers*(text: openarray[char]): seq[MarggersElement] =
+proc parseMarggers*(text: sink openarray[char],
+  options: MarggersOptions = defaultParserOptions,
+  staticOptions: static MarggersOptions = defaultParserOptions): seq[MarggersElement] =
   ## Alias of parseMarggers that takes openarray[char] as the argument.
-  result = parseMarggers(NativeString($text))
+  ## 
+  ## Currently copies.
+  result = parseMarggers(NativeString($text), options, staticOptions)
 
 when isMainModule:
   import os, strutils

@@ -1,4 +1,4 @@
-version       = "0.2.8"
+version       = "0.3.0"
 author        = "metagn"
 description   = "markdown dialect"
 license       = "MIT"

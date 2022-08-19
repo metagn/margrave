@@ -1,15 +1,9 @@
-{.define: marggersUseOptions.}
-
 import module_bridge, marggers, strutils
 
 test "Raw curly options":
   const
-    defaultOpts = MarggersParserOptions()
-    testOpts = MarggersParserOptions(curlyNoHtmlEscape: true)
-
-  type
-    DefaultOptsParser = MarggersParser[defaultOpts]
-    TestOptsParser = MarggersParser[testOpts]
+    defaultOpts = MarggersOptions()
+    testOpts = MarggersOptions(curlyNoHtmlEscape: true)
 
   const
     text: NativeString = "{ < }"
@@ -17,13 +11,13 @@ test "Raw curly options":
     testResult: NativeString = "<p> < </p>"
 
   var
-    allDefault = DefaultOptsParser(runtimeOptions: defaultOpts, str: text)
-    ctDefault = DefaultOptsParser(runtimeOptions: testOpts, str: text)
-    allTest = TestOptsParser(runtimeOptions: testOpts, str: text)
-    ctTest = TestOptsParser(runtimeOptions: defaultOpts, str: text)
+    allDefault = MarggersParser(options: defaultOpts, str: text)
+    ctDefault = MarggersParser(options: testOpts, str: text)
+    allTest = MarggersParser(options: testOpts, str: text)
+    ctTest = MarggersParser(options: defaultOpts, str: text)
   
   check:
-    becomes allDefault, defaultResult
-    becomes ctDefault, testResult
-    becomes allTest, testResult
-    becomes ctTest, testResult
+    becomes allDefault, defaultResult, defaultOpts
+    becomes ctDefault, testResult, defaultOpts
+    becomes allTest, testResult, testOpts
+    becomes ctTest, testResult, testOpts

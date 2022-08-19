@@ -4,7 +4,7 @@
 
 import parsexml, xmltree, streams, strtabs
 
-from ./shared import moveCompat
+import ./common
 
 proc addNode(father, son: XmlNode) =
   if son != nil: add(father, son)
