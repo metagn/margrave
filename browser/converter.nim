@@ -1,4 +1,4 @@
-import ../src/marggers, dom
+import ../src/[marggers, marggers/common, marggers/element], dom
 
 proc convertMarggers(text: NativeString): NativeString =
   result = ""
