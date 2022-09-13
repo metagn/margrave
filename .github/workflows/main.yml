@@ -1,4 +1,4 @@
-name: build browser & docs
+name: marggers
 
 on:
   push:
@@ -49,6 +49,7 @@ jobs:
           mkdir pages
           mv browser pages/
           mv docs pages/
+          cd pages
           git init
           git add -A
           git config --local user.email "action@github.com"
