@@ -37,10 +37,9 @@ type
       ## Overriden by compile time options.
     str*: NativeString # would be openarray[char] if cstring was compatible
     pos*: int
-    topLevelLast*: MarggersElement
-      ## Last element parsed at top level.
-      ## 
-      ## Nil if the last element is complete, i.e. 2 newlines were parsed.
+    contextStack*: seq[MarggersElement]
+      ## Stack of current top level contexts,
+      ## like lists or blockquotes.
     linkReferrers*: Table[NativeString, seq[MarggersElement]]
       ## Table of link references to elements that use the reference.
       ## During parsing, when a reference link is found, it will modify
