@@ -522,6 +522,7 @@ proc parseId*(parser; startChar: char): NativeString =
   discard parser.nextMatch(idDelim)
 
 proc parseTopLevel*(parser; options): seq[MarggersElement] =
+  var lastEmptyLine = false
   for firstCh in parser.nextChars:
     var context: MarggersElement
     block:
@@ -550,43 +551,49 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         inc i
       parser.contextStack.setLen(i)
 
-    proc addToContext(context, elem: MarggersElement) =
-      if context.tag in {ol, ul}:
-        if not elem.isText and elem.tag == p:
-          elem.tag = li
-          context.content.add(elem)
-        else:
-          let item = newElem(li)
-          item.add(elem)
-          context.content.add(item)
-      else:
-        context.add(elem)
-
-    template addElement(elem: MarggersElement) =
+    template addElement(elem: MarggersElement): untyped =
       let el = elem
       if not context.isNil:
-        context.addToContext(el)
+        context.add(el)
       else:
         result.add(el)
     
-    template addContext(elem: MarggersElement) =
+    template addContext(elem: MarggersElement): untyped =
       let el = elem
       addElement(el)
       parser.contextStack.add(el)
       context = el
     
-    template addLine() =
-      if not context.isNil and context.tag in {ol, ul}:
-        context.add newElem(li, parseSingleLine(parser, options))
-      elif not context.isNil and context.tag == blockquote:
-        context.add newElem(p, parseSingleLine(parser, options))
+    proc addLine(
+      parser: var MarggersParser;
+      options: static MarggersOptions;
+      context: MarggersElement;
+      result: var seq[MarggersElement];
+      lastEmptyLine: bool) {.nimcall.} =
+      if not context.isNil:
+        case context.tag
+        of ol, ul:
+          context.add newElem(li, parseSingleLine(parser, options))
+        of blockquote:
+          let c = parseSingleLine(parser, options)
+          if not lastEmptyLine and context.content.len != 0 and
+            (let last = context[^1]; not last.isText and last.tag == p):
+            last.add("\n")
+            last.add(c)
+          else:
+            context.add newElem(p, c)
+        else: discard # unreachable
       else:
-        addElement newElem(p, parseLine(parser, options))
+        result.add newElem(p, parseLine(parser, options))
+    
+    template addLine() = addLine(parser, options, context, result, lastEmptyLine)
 
     case parser.get()
     of '\r', '\n':
       discard parser.nextMatch("\r\n") or parser.nextMatch("\n")
       dec parser.pos
+      lastEmptyLine = true
+      continue
     of InlineWhitespace:
       let last =
         if not context.isNil and context.content.len != 0:
@@ -679,6 +686,8 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
       addElement(parseCodeBlock(parser, options, '~'))
     else:
       addLine()
+    
+    lastEmptyLine = false
 
 when isMainModule:
   import ../marggers

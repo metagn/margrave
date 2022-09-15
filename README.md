@@ -5,7 +5,7 @@ representation, which can be converted to HTML. Not stable.
 [Try in browser](https://metagn.github.io/marggers/browser/converter.html).
 [Docs](https://metagn.github.io/marggers/docs/marggers.html)
 
-Tested for C, JS and NimScript (so also VM). 
+Tested for C, JS and NimScript (so also VM).
 
 Input file ref.mrg:
 
