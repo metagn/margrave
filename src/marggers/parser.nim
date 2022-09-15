@@ -522,157 +522,173 @@ proc parseId*(parser; startChar: char): NativeString =
   discard parser.nextMatch(idDelim)
 
 proc parseTopLevel*(parser; options): seq[MarggersElement] =
-  template add(elem: MarggersElement): untyped =
-    result.add(elem)
-    parser.topLevelLast = nil
+  var lastEmptyLine = false
   for firstCh in parser.nextChars:
-    if firstCh in {'\r', '\n'}:
-      if not parser.topLevelLast.isNil:
-        add(paragraphIfText(parser.topLevelLast))
-    elif not parser.topLevelLast.isNil:
-      assert not parser.topLevelLast.isText
-      case parser.topLevelLast.tag
-      of ul:
-        if parser.nextMatch(Whitespace, offset = 1):
-          let item = newElem(li)
-          item.content = parseSingleLine(parser, options)
-          parser.topLevelLast.add(item)
-        elif parser.nextMatch(IdStarts, offset = 1):
-          var item = newElem(li)
-          item.attr("id", parser.parseId(parser.get(-1)))
-          item.content = parseSingleLine(parser, options)
-          parser.topLevelLast.add(item)
-        else:
-          parser.topLevelLast[^1].add("\n")
-          parser.topLevelLast[^1].add(parseSingleLine(parser, options))
-      of ol:
-        var i = 0
-        while parser.peekMatch(Digits, offset = i): inc i
-        if parser.nextMatch('.', offset = i):
-          let item = newElem(li)
-          if (let ch = parser.get(); parser.nextMatch(IdStarts)):
-            item.attr("id", parser.parseId(ch))
-          item.content = parseSingleLine(parser, options)
-          parser.topLevelLast.add(item)
-        else:
-          parser.topLevelLast[^1].add("\n ")
-          parser.topLevelLast[^1].add(parseSingleLine(parser, options))
-      of blockquote:
-        if firstCh == '>': inc parser.pos
-        proc skipWhitespaceUntilNewline(parser: var MarggersParser): bool =
-          var i = 0
-          while parser.pos + i < parser.str.len:
-            let ch = parser.get(offset = i)
-            case ch
-            of '\n':
-              parser.pos += i
-              return true
-            of Whitespace - {'\n'}:
-              discard
-            else:
-              return false
-            inc i
-        let rem = skipWhitespaceUntilNewline(parser)
-        if rem:
-          if firstCh == '>':
-            parser.topLevelLast[^1] = parser.topLevelLast[^1].paragraphIfText
-            parser.topLevelLast.add("\n")
-            if parser.peekPrevMatch("  "):
-              parser.topLevelLast.add(newElem(br))
+    var context: MarggersElement
+    block:
+      var i = 0
+      while i < parser.contextStack.len:
+        let c = parser.contextStack[i]
+        case c.tag
+        of ul:
+          if parser.nextMatch({'*', '-', '+'}):
+            while parser.nextMatch(InlineWhitespace): discard
+          else: break
+        of ol:
+          let originalPos = parser.pos
+          while parser.nextMatch(Digits): discard
+          if parser.nextMatch('.'):
+            while parser.nextMatch(InlineWhitespace): discard
           else:
-            parser.topLevelLast[^1] = parser.topLevelLast[^1].paragraphIfText
-            result.add(parser.topLevelLast)
-            if parser.peekPrevMatch("  "):
-              result.add(newElem(br))
-        elif parser.topLevelLast[^1].isText:
-          parser.topLevelLast.add("\n")
-          parser.topLevelLast.add(newElem(p, parseSingleLine(parser, options)))
-        elif firstCh in InlineWhitespace:
-          parser.topLevelLast[^1].add("\n ")
-          parser.topLevelLast[^1].add(parseSingleLine(parser, options))
-        else:
-          parser.topLevelLast[^1].add("\n")
-          parser.topLevelLast[^1].add(parseSingleLine(parser, options))
-      of {low(KnownTags)..high(KnownTags)} - SpecialLineTags:
-        add(paragraphIfText(parser.topLevelLast))
-        dec parser.pos
-    else:
-      case firstCh
-      of InlineWhitespace:
-        if result.len != 0 and not result[^1].isText and
-          result[^1].tag in SpecialLineTags and
-          result[^1].content.len != 0:
-          result[^1][^1].add("\n ")
-          result[^1][^1].add(parseLine(parser, options))
-        else:
-          parser.topLevelLast = newElem(p, parseSingleLine(parser, options))
-      of '#':
+            parser.pos = originalPos
+            break
+        of blockquote:
+          if parser.nextMatch('>'):
+            while parser.nextMatch(InlineWhitespace): discard
+          else: break
+        else: discard # unreachable
+        context = c
+        inc i
+      parser.contextStack.setLen(i)
+
+    template addElement(elem: MarggersElement): untyped =
+      let el = elem
+      if not context.isNil:
+        context.add(el)
+      else:
+        result.add(el)
+    
+    template addContext(elem: MarggersElement): untyped =
+      let el = elem
+      addElement(el)
+      parser.contextStack.add(el)
+      context = el
+    
+    proc addLine(
+      parser: var MarggersParser;
+      options: static MarggersOptions;
+      context: MarggersElement;
+      result: var seq[MarggersElement];
+      lastEmptyLine: bool) {.nimcall.} =
+      if not context.isNil:
+        case context.tag
+        of ol, ul:
+          context.add newElem(li, parseSingleLine(parser, options))
+        of blockquote:
+          let c = parseSingleLine(parser, options)
+          if not lastEmptyLine and context.content.len != 0 and
+            (let last = context[^1]; not last.isText and last.tag == p):
+            last.add("\n")
+            last.add(c)
+          else:
+            context.add newElem(p, c)
+        else: discard # unreachable
+      else:
+        result.add newElem(p, parseLine(parser, options))
+    
+    template addLine() = addLine(parser, options, context, result, lastEmptyLine)
+
+    case parser.get()
+    of '\r', '\n':
+      discard parser.nextMatch("\r\n") or parser.nextMatch("\n")
+      dec parser.pos
+      lastEmptyLine = true
+      continue
+    of InlineWhitespace:
+      let last =
+        if not context.isNil and context.content.len != 0:
+          context[^1]
+        elif result.len != 0:
+          result[^1]
+        else: nil
+      if not last.isText and
+        last.tag in SpecialLineTags and
+        (let last2 = last[^1]; last2.content.len != 0):
+        last2.add("\n ")
+        last2.add(parseLine(parser, options))
+      else:
+        addLine()
+    of '#':
+      if context.isNil or context.tag in {blockquote, p}:
+        while not context.isNil and context.tag == p:
+          let last = parser.contextStack.len - 1
+          context = parser.contextStack[last]
+          parser.contextStack.setLen(last)
+          if last == 0: break
         var level = 1
         while level < 6 and parser.peekMatch('#', offset = level): inc level
         parser.pos += level
-        parser.topLevelLast = newElem(KnownTags(static(h1.int - 1) + level))
+        let header = newElem(KnownTags(static(h1.int - 1) + level))
         parser.matchNext:
-        of '|': style parser.topLevelLast, "text-align:center"
-        of '<': style parser.topLevelLast, "text-align:left"
-        of '>': style parser.topLevelLast, "text-align:right"
+        of '|': style header, "text-align:center"
+        of '<': style header, "text-align:left"
+        of '>': style header, "text-align:right"
         if (let ch = parser.get(); parser.nextMatch(IdStarts)):
-          parser.topLevelLast.attr("id", parser.parseId(ch))
-        parser.topLevelLast.add(parseSingleLine(parser, options))
-      of '*', '-', '+':
-        if parser.nextMatch(Whitespace, offset = 1):
-          parser.topLevelLast = newElem(ul)
-          let item = newElem(li)
-          item.add(parseSingleLine(parser, options))
-          parser.topLevelLast.add(item)
-        elif parser.nextMatch(IdStarts, offset = 1):
-          parser.topLevelLast = newElem(ul)
-          var item = newElem(li)
-          item.attr("id", parser.parseId(parser.get(-1)))
-          item.content = parseSingleLine(parser, options)
-          parser.topLevelLast.add(item)
-        else:
-          parser.topLevelLast = newElem(p, parseLine(parser, options))
-      of Digits:
-        let originalPos = parser.pos
-        inc parser.pos
-        while parser.nextMatch(Digits): discard
-        if parser.nextMatch('.'):
-          parser.topLevelLast = newElem(ol)
-          var item = newElem(li)
-          if (let ch = parser.get(); parser.nextMatch(IdStarts)):
-            item.attr("id", parser.parseId(ch))
-          item.add(parseSingleLine(parser, options))
-          parser.topLevelLast.add(item)
-        else:
-          parser.pos = originalPos
-          parser.topLevelLast = newElem(p, parseLine(parser, options))
-      of '>':
-        parser.topLevelLast = newElem(blockquote)
-        inc parser.pos
-        if (let ch = parser.get(); parser.nextMatch(IdStarts)):
-          parser.topLevelLast.attr("id", parser.parseId(ch))
-        parser.topLevelLast.add(newElem(p, parseSingleLine(parser, options)))
-      of '[':
-        # reference link
-        let initialPos = parser.pos
-        inc parser.pos
-        var refNameFailed = false
-        let refName = parseReferenceName(parser, options, refNameFailed)
-        if not refNameFailed and (inc parser.pos; parser.nextMatch(':')) and
-          (let (correct, link, tip) = parseLink(parser, options, failOnNewline = true);
-            correct): # smooth
-          for el in parser.linkReferrers.getOrDefault(refName, @[]):
-            if tip.len != 0:
-              el.attrEscaped("title", NativeString(tip))
-            parser.setLink(options, el, NativeString(link.strip()))
-        else:
-          parser.pos = initialPos
-          parser.topLevelLast = newElem(p, parseLine(parser, options))
-      elif parser.nextMatch("```"):
-        add(parseCodeBlock(parser, options, '`'))
-      elif parser.nextMatch("~~~"):
-        add(parseCodeBlock(parser, options, '~'))
+          header.attr("id", parser.parseId(ch))
+        header.add(parseSingleLine(parser, options))
+        addElement(header)
       else:
-        parser.topLevelLast = newElem(p, parseLine(parser, options))
-  if not parser.topLevelLast.isNil:
-    add(parser.topLevelLast)
+        addLine()
+    of '*', '-', '+':
+      if parser.nextMatch(InlineWhitespace, offset = 1):
+        addContext newElem(ul)
+        addLine()
+      elif parser.nextMatch(IdStarts, offset = 1):
+        let list = newElem(ul)
+        var item = newElem(li)
+        item.attr("id", parser.parseId(parser.get(-1)))
+        item.content = parseSingleLine(parser, options)
+        list.add(item)
+        addContext(list)
+      else:
+        addLine()
+    of Digits:
+      let originalPos = parser.pos
+      inc parser.pos
+      while parser.nextMatch(Digits): discard
+      if parser.nextMatch('.'):
+        let list = newElem(ol)
+        var item = newElem(li)
+        if (let ch = parser.get(); parser.nextMatch(IdStarts)):
+          item.attr("id", parser.parseId(ch))
+        item.add(parseSingleLine(parser, options))
+        list.add(item)
+        addContext(list)
+      else:
+        parser.pos = originalPos
+        addLine()
+    of '>':
+      let quote = newElem(blockquote)
+      inc parser.pos
+      if (let ch = parser.get(); parser.nextMatch(IdStarts)):
+        quote.attr("id", parser.parseId(ch))
+      addContext(quote)
+      addLine()
+    of '[':
+      # reference link
+      let initialPos = parser.pos
+      inc parser.pos
+      var refNameFailed = false
+      let refName = parseReferenceName(parser, options, refNameFailed)
+      if not refNameFailed and (inc parser.pos; parser.nextMatch(':')) and
+        (let (correct, link, tip) = parseLink(parser, options, failOnNewline = true);
+          correct): # smooth
+        for el in parser.linkReferrers.getOrDefault(refName, @[]):
+          if tip.len != 0:
+            el.attrEscaped("title", NativeString(tip))
+          parser.setLink(options, el, NativeString(link.strip()))
+      else:
+        parser.pos = initialPos
+        addLine()
+    elif parser.nextMatch("```"):
+      addElement(parseCodeBlock(parser, options, '`'))
+    elif parser.nextMatch("~~~"):
+      addElement(parseCodeBlock(parser, options, '~'))
+    else:
+      addLine()
+    
+    lastEmptyLine = false
+
+when isMainModule:
+  import ../marggers
+  discard parseMarggers("# hello")
