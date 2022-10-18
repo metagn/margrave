@@ -443,8 +443,8 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
       let (linkWorked, link, tip) = parseLink(parser, options, failOnNewline = false)
       if linkWorked:
         let realLink = strip(
-          if not image and link.len == 0 and textElems.len == 1 and textElems[0].isText:
-            moveCompat(textElems[0].str)
+          if link.len == 0 and textElems.len == 1 and textElems[0].isText:
+            textElems[0].str
           else:
             NativeString(link)
         )

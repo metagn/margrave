@@ -45,6 +45,10 @@ const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
   "[a] b [c] d[e] f[g] ": "<p>[a] b [c] d<sub>e</sub> f<sub>g</sub> </p>",
 
   "1 > 3": "<p>1 &gt; 3</p>",
+
+  # link to itself
+  "![img.png]()": "<p><img alt=\"img.png\" src=\"img.png\"></p>",
+  "[img.png]()": "<p><a href=\"img.png\">img.png</a></p>"
 }
 
 iterator inlineTests*: tuple[marggers, html: NativeString] =
