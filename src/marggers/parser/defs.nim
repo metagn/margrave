@@ -7,7 +7,7 @@ type
       ## (normally only formatting is disabled).
       ## 
       ## Compile time option overrides runtime option when `true`.
-    inlineHtmlHandler*: proc (str: NativeString, i: int): (bool, int) {.nimcall.}
+    inlineHtmlHandler*: proc (str: NativeString, i: int): (bool, int) {.nimcall, gcsafe.}
       ## Should parse a single HTML element starting at `i` in `str`,
       ## returning `(true, pos)` if an HTML element has been correctly parsed
       ## and `pos` is the immediate index after it or `(false, _)` if it has
@@ -16,14 +16,14 @@ type
       ## Compile time option overrides runtime option when not nil.
       ## 
       ## See `singlexml.parseXml <singlexml.html#parseXml,string,int>`_.
-    codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString) {.nimcall.}
+    codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString) {.nimcall, gcsafe.}
       ## Callback to use when a code block has a language attached.
       ## `codeBlock` is modifiable.
       ## 
       ## If nil, any language name will be passed directly to the code block.
       ## 
       ## Compile time option overrides runtime option when not nil.
-    setLinkHandler*: proc (element: MarggersElement, link: NativeString) {.nimcall.}
+    setLinkHandler*: proc (element: MarggersElement, link: NativeString) {.nimcall, gcsafe.}
       ## Handles when an element gets a link. `element` is modifiable.
       ## 
       ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
