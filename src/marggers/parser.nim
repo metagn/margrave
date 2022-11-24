@@ -569,11 +569,17 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
       options: static MarggersOptions;
       context: MarggersElement;
       result: var seq[MarggersElement];
-      lastEmptyLine: bool) {.nimcall.} =
+      lastEmptyLine: bool;
+      rawLine: static bool = false) {.nimcall.} =
+      template rawOrNot(t, els): untyped =
+        when rawLine:
+          els
+        else:
+          newElem(t, els)
       if not context.isNil:
         case context.tag
         of ol, ul:
-          context.add newElem(li, parseSingleLine(parser, options))
+          context.add rawOrNot(li, parseSingleLine(parser, options))
         of blockquote:
           let c = parseSingleLine(parser, options)
           if not lastEmptyLine and context.content.len != 0 and
@@ -581,12 +587,13 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
             last.add("\n")
             last.add(c)
           else:
-            context.add newElem(p, c)
+            context.add rawOrNot(p, c)
         else: discard # unreachable
       else:
-        result.add newElem(p, parseLine(parser, options))
+        result.add rawOrNot(p, parseLine(parser, options))
     
-    template addLine() = addLine(parser, options, context, result, lastEmptyLine)
+    template addLine(rawLine: static bool = false) =
+      addLine(parser, options, context, result, lastEmptyLine, rawLine)
 
     case parser.get()
     of '\r', '\n':
@@ -664,25 +671,6 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         quote.attr("id", parser.parseId(ch))
       addContext(quote)
       addLine()
-    of '<':
-      # potential html
-      let initialPos = parser.pos
-      var
-        change: bool
-        pos: int
-      withOptions(parser, options, not options.inlineHtmlHandler.isNil):
-        (change, pos) = options.inlineHtmlHandler(parser.str, parser.pos)
-      do:
-        (change, pos) = when marggersNoDefaultHtmlHandler:
-          (false, 0)
-        else:
-          parseXml($parser.str, parser.pos)
-      if change:
-        addElement(newStr(parser.str[parser.pos ..< pos]))
-        parser.pos = pos - 1
-      else:
-        parser.pos = initialPos
-        addLine()
     of '[':
       # reference link
       let initialPos = parser.pos
@@ -703,6 +691,8 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
       addElement(parseCodeBlock(parser, options, '`'))
     elif parser.nextMatch("~~~"):
       addElement(parseCodeBlock(parser, options, '~'))
+    elif parser.peekMatch("{!"):
+      addLine(rawLine = true)
     else:
       addLine()
     
