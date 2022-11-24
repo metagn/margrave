@@ -252,6 +252,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
           parser.pos = initialPos # why do this
         return ((if delim.len == 0: frReachedEnd else: frDone), elems)
       of "  \r\n", "  \n":
+        dec parser.pos
         add(newElem(br))
       of "```":
         add(parseCodeBlock(parser, options, '`'))
