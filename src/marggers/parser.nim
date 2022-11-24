@@ -664,6 +664,25 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         quote.attr("id", parser.parseId(ch))
       addContext(quote)
       addLine()
+    of '<':
+      # potential html
+      let initialPos = parser.pos
+      var
+        change: bool
+        pos: int
+      withOptions(parser, options, not options.inlineHtmlHandler.isNil):
+        (change, pos) = options.inlineHtmlHandler(parser.str, parser.pos)
+      do:
+        (change, pos) = when marggersNoDefaultHtmlHandler:
+          (false, 0)
+        else:
+          parseXml($parser.str, parser.pos)
+      if change:
+        addElement(newStr(parser.str[parser.pos ..< pos]))
+        parser.pos = pos - 1
+      else:
+        parser.pos = initialPos
+        addLine()
     of '[':
       # reference link
       let initialPos = parser.pos
