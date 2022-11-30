@@ -9,26 +9,25 @@ import ./common
 proc addNode(father, son: XmlNode) =
   if son != nil: add(father, son)
 
-proc parse(x: var XmlParser, errors: var seq[string]): XmlNode {.gcsafe.}
+proc parse(x: var XmlParser, errors: var bool): XmlNode {.gcsafe.}
 
 proc untilElementEnd(x: var XmlParser, result: XmlNode,
-                     errors: var seq[string]) =
+                     errors: var bool) =
   while true:
     case x.kind
     of xmlElementEnd:
       if x.elementName == result.tag:
         return
       else:
-        errors.add(errorMsg(x, "</" & result.tag & "> expected"))
-        # do not skip it here!
+        errors = true # </$result.tag> expected
       break
     of xmlEof:
-      errors.add(errorMsg(x, "</" & result.tag & "> expected"))
+      errors = true # </$result.tag> expected
       break
     else:
       result.addNode(parse(x, errors))
 
-proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
+proc parse(x: var XmlParser, errors: var bool): XmlNode =
   case x.kind
   of xmlComment:
     result = newComment(moveCompat x.charData)
@@ -40,14 +39,14 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
     # we just ignore processing instructions for now
     next(x)
   of xmlError:
-    errors.add(errorMsg(x))
+    errors = true
     next(x)
   of xmlElementStart: ## ``<elem>``
     result = newElement(moveCompat x.elementName)
     next(x)
     untilElementEnd(x, result, errors)
   of xmlElementEnd:
-    errors.add(errorMsg(x, "unexpected ending tag: " & moveCompat x.elementName))
+    errors = true # unexpected ending tag: $x.elementName
   of xmlElementOpen:
     result = newElement(moveCompat x.elementName)
     next(x)
@@ -61,16 +60,16 @@ proc parse(x: var XmlParser, errors: var seq[string]): XmlNode =
         next(x)
         break
       of xmlError:
-        errors.add(errorMsg(x))
+        errors = true
         next(x)
         break
       else:
-        errors.add(errorMsg(x, "'>' expected"))
+        errors = true # '>' expected
         next(x)
         break
     untilElementEnd(x, result, errors)
   of xmlAttribute, xmlElementClose:
-    errors.add(errorMsg(x, "<some_tag> expected"))
+    errors = true # <some_tag> expected
     next(x)
   of xmlCData:
     result = newCData(moveCompat x.charData)
@@ -86,12 +85,12 @@ proc parseXml*(text: string, i: int): (bool, int) =
   ## and return a tuple with a boolean indicating success and
   ## an integer indicating the index where parsing XML failed,
   ## or ended (so not inclusive).
-  var errors: seq[string]
+  var errors: bool
   var x: XmlParser
   let stream = newStringStream(text)
   stream.setPosition(i)
   open(x, stream, "", {allowUnquotedAttribs, reportComments})
-  x.next()
+  next(x)
   while true:
     case x.kind
     of xmlElementOpen, xmlElementStart:
@@ -99,7 +98,7 @@ proc parseXml*(text: string, i: int): (bool, int) =
       untilElementEnd(x, node, errors)
       result[0] = true
     of xmlComment, xmlSpecial, xmlPI, xmlCData:
-      x.next
+      next(x)
       result[0] = true
     of xmlElementEnd, xmlCharData, xmlWhitespace, xmlEof:
       result[0] = true

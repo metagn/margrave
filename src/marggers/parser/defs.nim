@@ -6,14 +6,18 @@ type
       ## Define this to disable HTML escaping inside curly brackets
       ## (normally only formatting is disabled).
       ## 
-      ## Compile time option overrides runtime option when `true`.
+      ## `true` value at compile time overrides runtime value.
+    insertLineBreaks*: bool
+      ## Inserts <br> on newlines.
+      ## 
+      ## `true` value at compile time overrides runtime value.
     inlineHtmlHandler*: proc (str: NativeString, i: int): (bool, int) {.nimcall, gcsafe.}
       ## Should parse a single HTML element starting at `i` in `str`,
       ## returning `(true, pos)` if an HTML element has been correctly parsed
       ## and `pos` is the immediate index after it or `(false, _)` if it has
       ## not been correctly parsed.
       ## 
-      ## Compile time option overrides runtime option when not nil.
+      ## Not nil value at compile time overrides runtime value.
       ## 
       ## See `singlexml.parseXml <singlexml.html#parseXml,string,int>`_.
     codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString) {.nimcall, gcsafe.}
@@ -22,13 +26,13 @@ type
       ## 
       ## If nil, any language name will be passed directly to the code block.
       ## 
-      ## Compile time option overrides runtime option when not nil.
+      ## Not nil value at compile time overrides runtime value.
     setLinkHandler*: proc (element: MarggersElement, link: NativeString) {.nimcall, gcsafe.}
       ## Handles when an element gets a link. `element` is modifiable.
       ## 
       ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
       ## 
-      ## Compile time option overrides runtime option when not nil.
+      ## Not nil value at compile time overrides runtime value.
   
   MarggersParser* {.byref.} = object
     ## A parser object.

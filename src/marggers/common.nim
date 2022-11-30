@@ -37,7 +37,12 @@ else:
 
   template toNativeString*(x: char): NativeString = $x
 
-template toNativeString*(x: string | cstring): NativeString = NativeString(x)
+when NativeString is string:
+  template toNativeString*(x: cstring): NativeString = $x
+  template toNativeString*(x: string): NativeString = x
+else:
+  template toNativeString*(x: cstring): NativeString = x
+  template toNativeString*(x: string): NativeString = cstring(x)
 
 template moveCompat*(x: untyped): untyped =
   ## Compatibility replacement for `move`
@@ -54,3 +59,15 @@ when not defined(nimscript): # breaks nimscript for some reason
     case x
     of arr: result = true
     else: result = false
+
+import macros
+
+func toCstring*[T: enum](x: T): cstring =
+  macro gen(x2: T) =
+    result = newTree(nnkCaseStmt, x2)
+    let impl = x2.getTypeImpl
+    for i in 1 ..< impl.len:
+      let e = impl[i]
+      let z = if e.kind in {nnkIdent, nnkSym}: e else: e[0]
+      result.add(newTree(nnkOfBranch, z, newAssignment(ident"result", newCall(bindSym"cstring", newLit($e)))))
+  gen(x)

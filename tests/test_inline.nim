@@ -36,7 +36,7 @@ const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
   "video: ![](video.mp4)": "<p>video: <video controls src=\"video.mp4\"></video></p>",
   "audio: ![](audio.mp3)": "<p>audio: <audio controls src=\"audio.mp3\"></audio></p>",
   "ignores space: ![]( video.mp4 )": "<p>ignores space: <video controls src=\"video.mp4\"></video></p>",
-  "dir link: ![](video.mp4/)": "<p>dir link: <img src=\"video.mp4/\"></p>",
+  "dir link: ![](video.mp4/)": "<p>dir link: <img src=\"video.mp4/\"/></p>",
 
   # single superscript, #18
   "a^b c^d e ^ f g^ h i ^j k^l": "<p>a<sup>b</sup> c<sup>d</sup> e ^ f g^ h i ^j k<sup>l</sup></p>",
@@ -47,8 +47,17 @@ const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
   "1 > 3": "<p>1 &gt; 3</p>",
 
   # link to itself
-  "![img.png]()": "<p><img alt=\"img.png\" src=\"img.png\"></p>",
-  "[img.png]()": "<p><a href=\"img.png\">img.png</a></p>"
+  "![img.png]()": "<p><img alt=\"img.png\" src=\"img.png\"/></p>",
+  "[img.png]()": "<p><a href=\"img.png\">img.png</a></p>",
+
+  # nested lists
+  """* a
+* * b
+* * c
+*   d
+*   * e
+* * f
+g""": "<ul><li>a</li><ul><li>b</li><li>c</li></ul><li>d</li><ul><li>e</li><li>f</li></ul></ul><p>g</p>",
 }
 
 iterator inlineTests*: tuple[marggers, html: NativeString] =

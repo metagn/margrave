@@ -21,3 +21,18 @@ test "Raw curly options":
     becomes ctDefault, testResult, defaultOpts
     becomes allTest, testResult, testOpts
     becomes ctTest, testResult, testOpts
+
+test "Line breaks":
+  const control: NativeString = """a
+b
+
+c
+d
+e
+
+f
+
+g"""
+  check:
+    becomes control, "<p>a\nb</p><p>c\nd\ne</p><p>f</p><p>g</p>"
+    becomes control, "<p>a<br/>b</p><p>c<br/>d<br/>e</p><p>f</p><p>g</p>", MarggersOptions(insertLineBreaks: true)

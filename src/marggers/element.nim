@@ -27,73 +27,28 @@ type
         ## Can contain HTML, escaping chars must be done beforehand.
     else:
       tag*: KnownTags
-        ## The known tag of an HTML element.
-        ## If an unknown tag must be used for an element,
-        ## consider using a text node for now.
+        ## The tag of an HTML element.
+        ## 
+        ## If unknown (equal to `noTag`), the `tag` attribute is used.
+        ## An unknown tag can also indicate having no ending tag
+        ## with the `emptyTag` attribute.
       attrs*: OrderedTable[NativeString, NativeString]
         ## Attributes of an HTML element.
       content*: seq[MarggersElement]
         ## Inner HTML elements of an HTML element.
 
-const EmptyTags* = {br, img, input}
+const EmptyTags* = {noTag, br, img, input}
 
-func isEmpty*(tag: KnownTags): bool {.inline.} =
-  ## Returns true if `tag` is an empty tag, i.e. it has no ending tag.
-  case tag
-  of EmptyTags: true
-  else: false
-
-func `$`*(elem: MarggersElement): string =
-  ## Outputs a marggers element as HTML.
-  if elem.isText:
-    result = $elem.str
-  else:
-    result.add('<')
-    result.add($elem.tag)
-    for attrName, attrValue in elem.attrs:
-      result.add(' ')
-      result.add(attrName)
-      if attrValue.len != 0:
-        result.add('=')
-        result.addQuoted(attrValue)
-    result.add('>')
-    for cont in elem.content:
-      result.add($cont)
-    if not elem.tag.isEmpty:
-      result.add("</")
-      result.add($elem.tag)
-      result.add('>')
-
-when defined(js) and not defined(nimdoc):  
-  func toCstring*(elem: MarggersElement): cstring =
-    if elem.isText:
-      result = elem.str
-    else:
-      result = "<"
-      result.add(cstring($elem.tag))
-      for attrName, attrValue in elem.attrs:
-        result.add(' ')
-        result.add(attrName)
-        if attrValue.len != 0:
-          result.add(cstring "=\"")
-          result.add(attrValue)
-          result.add("\"")
-      result.add('>')
-      for cont in elem.content:
-        result.add(cont.toCstring())
-      if not elem.tag.isEmpty:
-        result.add("</")
-        result.add(cstring($elem.tag))
-        result.add('>')
-  template toNativeString*(elem: MarggersElement): NativeString =
-    toCstring(elem)
+when defined(js):
+  func isEmpty*(tag: KnownTags): bool {.inline.} =
+    ## Returns true if `tag` is an empty tag, i.e. it has no ending tag.
+    case tag
+    of EmptyTags: true
+    else: false
 else:
-  proc toCstring*(elem: MarggersElement): cstring =
-    ## Outputs a marggers element as HTML as a cstring, mostly for JS.
-    cstring($elem)
-  
-  template toNativeString*(elem: MarggersElement): NativeString =
-    $elem
+  template isEmpty*(tag: KnownTags): bool =
+    ## Returns true if `tag` is an empty tag, i.e. it has no ending tag.
+    tag in EmptyTags
 
 func newStr*(s: NativeString): MarggersElement =
   ## Creates a new text node with text `s`.
@@ -171,3 +126,51 @@ func add*(elem: MarggersElement, cont: seq[MarggersElement]) =
 func add*(elem: MarggersElement, str: NativeString) =
   ## Adds a text node to `elem.content`.
   elem.content.add(newStr(str))
+
+func toNativeString*(elem: MarggersElement): NativeString =
+  if elem.isText:
+    result = elem.str
+  else:
+    var empty = elem.tag.isEmpty
+    var tag: NativeString
+    if unlikely(elem.tag == noTag):
+      if elem.hasAttr("tag"):
+        tag = elem.attr("tag")
+        empty = not elem.hasAttr("emptyTag")
+    else:
+      when NativeString is string:
+        tag = $elem.tag
+      else:
+        tag = toCstring(elem.tag)
+    if tag.len != 0:
+      result.add('<')
+      result.add(tag)
+      for attrName, attrValue in elem.attrs:
+        result.add(' ')
+        result.add(attrName)
+        if attrValue.len != 0:
+          when NativeString is string:
+            result.add('=')
+            result.addQuoted(attrValue)
+          else:
+            
+            result.add(cstring "=\"")
+            result.add(attrValue)
+            result.add("\"")
+      if empty:
+        result.add('/')
+      result.add('>')
+    for cont in elem.content:
+      result.add(toNativeString(cont))
+    if not empty:
+      result.add("</")
+      result.add(tag)
+      result.add('>')
+
+func `$`*(elem: MarggersElement): string =
+  ## Outputs a marggers element as HTML.
+  $toNativeString(elem)
+
+func toCstring*(elem: MarggersElement): cstring =
+  ## Outputs a marggers element as HTML as a cstring, mostly for JS.
+  cstring(toNativeString(elem))

@@ -56,6 +56,12 @@ proc setLink*(parser: MarggersParser, options: static MarggersOptions, elem: Mar
   do:
     setLinkDefault(elem, link)
 
+proc addNewline*(parser: MarggersParser, options: static MarggersOptions, elem: MarggersElement | seq[MarggersElement]) =
+  withOptions(parser, options, options.insertLineBreaks):
+    elem.add(newElem(br))
+  do:
+    elem.add("\n")
+
 template get*(parser: MarggersParser, offset: int = 0): char =
   parser.str[parser.pos + offset]
 

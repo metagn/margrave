@@ -251,6 +251,12 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         else:
           parser.pos = initialPos # why do this
         return ((if delim.len == 0: frReachedEnd else: frDone), elems)
+      elif not singleLine and (parser.nextMatch("\r\n") or parser.nextMatch("\n")):
+        dec parser.pos
+        withOptions(parser, options, options.insertLineBreaks):
+          add(newElem(br))
+        do:
+          add(ch)
       of "  \r\n", "  \n":
         dec parser.pos
         add(newElem(br))
@@ -449,13 +455,12 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
           else:
             NativeString(link)
         )
-        result = MarggersElement(isText: false)
         if image:
-          result.tag = img
+          result = MarggersElement(isText: false, tag: img)
           if secondPos - firstPos > 0:
             result.attrEscaped("alt", parser.str[firstPos..secondPos])
         else:
-          result.tag = a
+          result = MarggersElement(isText: false, tag: a)
           result.content = textElems
         if tip.len != 0:
           result.attrEscaped("title", NativeString(tip))
@@ -585,7 +590,7 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
           let c = parseSingleLine(parser, options)
           if not lastEmptyLine and context.content.len != 0 and
             (let last = context[^1]; not last.isText and last.tag == p):
-            last.add("\n")
+            addNewline(parser, options, last)
             last.add(c)
           else:
             context.add rawOrNot(p, c)
@@ -609,10 +614,10 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         elif result.len != 0:
           result[^1]
         else: nil
-      if not last.isText and
+      if not last.isNil and not last.isText and
         last.tag in SpecialLineTags and
         (let last2 = last[^1]; last2.content.len != 0):
-        last2.add("\n ")
+        addNewline(parser, options, last2)
         last2.add(parseLine(parser, options))
       else:
         addLine()
