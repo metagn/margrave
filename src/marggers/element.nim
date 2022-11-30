@@ -10,7 +10,8 @@ type
     sup, sub, em, strong, pre, code, u, s,
     img, input, a,
     video, audio,
-    #otherTag, text
+    otherTag
+    #text
 
   MarggersElement* {.acyclic.} = ref object
     ## An individual node.
@@ -29,15 +30,15 @@ type
       tag*: KnownTags
         ## The tag of an HTML element.
         ## 
-        ## If unknown (equal to `noTag`), the `tag` attribute is used.
-        ## An unknown tag can also indicate having no ending tag
+        ## If equal to `otherTag`, the `tag` attribute is used.
+        ## Such elements can also indicate having no ending tag
         ## with the `emptyTag` attribute.
       attrs*: OrderedTable[NativeString, NativeString]
         ## Attributes of an HTML element.
       content*: seq[MarggersElement]
         ## Inner HTML elements of an HTML element.
 
-const EmptyTags* = {noTag, br, img, input}
+const EmptyTags* = {noTag, br, img, input, otherTag}
 
 when defined(js):
   func isEmpty*(tag: KnownTags): bool {.inline.} =
@@ -133,10 +134,12 @@ func toNativeString*(elem: MarggersElement): NativeString =
   else:
     var empty = elem.tag.isEmpty
     var tag: NativeString
-    if unlikely(elem.tag == noTag):
+    case elem.tag
+    of noTag: discard # tag stays empty
+    of otherTag:
       if elem.hasAttr("tag"):
         tag = elem.attr("tag")
-        empty = not elem.hasAttr("emptyTag")
+        empty = elem.hasAttr("emptyTag")
     else:
       when NativeString is string:
         tag = $elem.tag
@@ -153,7 +156,6 @@ func toNativeString*(elem: MarggersElement): NativeString =
             result.add('=')
             result.addQuoted(attrValue)
           else:
-            
             result.add(cstring "=\"")
             result.add(attrValue)
             result.add("\"")
