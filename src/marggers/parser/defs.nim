@@ -1,6 +1,11 @@
 import ".."/[common, element], tables
 
 type
+  Link* = object
+    url*: NativeString
+    tip*: NativeString
+    altUrls*: seq[NativeString]
+
   MarggersOptions* {.byref.} = object
     curlyNoHtmlEscape*: bool
       ## Define this to disable HTML escaping inside curly brackets
@@ -27,7 +32,7 @@ type
       ## If nil, any language name will be passed directly to the code block.
       ## 
       ## Not nil value at compile time overrides runtime value.
-    setLinkHandler*: proc (element: MarggersElement, link: NativeString) {.nimcall, gcsafe.}
+    setLinkHandler*: proc (element: MarggersElement, link: Link) {.nimcall, gcsafe.}
       ## Handles when an element gets a link. `element` is modifiable.
       ## 
       ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.

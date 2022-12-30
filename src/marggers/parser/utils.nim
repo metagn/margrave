@@ -21,7 +21,7 @@ template withOptions*(parser: MarggersParser, compileTimeOptions: static Margger
 template withOptions*(parser: MarggersParser, compileTimeOptions: static MarggersOptions, cond, body): untyped =
   withOptions(parser, compileTimeOptions, cond, body): discard
 
-proc setLinkDefault*(elem: MarggersElement, link: NativeString) =
+proc setLinkDefault*(elem: MarggersElement, link: Link) =
   ## Sets element link.
   ## 
   ## If `elem` has tag `a`, sets the `href` attribute to `link`.
@@ -32,24 +32,42 @@ proc setLinkDefault*(elem: MarggersElement, link: NativeString) =
   ## Other tags for `elem` also set the `src` attribute to `link`.
   case elem.tag
   of a:
-    elem.attrEscaped("href", link)
+    elem.attrEscaped("href", link.url)
   of img:
-    if (link.len >= 4 and link[^4 .. ^1] in [NativeString".mp4", ".m4v", ".mov", ".ogv"]) or
-      (link.len >= 5 and link[^5 .. ^1] == ".webm"): 
+    let firstUrl = link.url
+    if (firstUrl.len >= 4 and firstUrl[^4 .. ^1] in [NativeString".mp4", ".m4v", ".mov", ".ogv"]) or
+      (firstUrl.len >= 5 and firstUrl[^5 .. ^1] == ".webm"): 
       elem.tag = video
-    elif (link.len >= 4 and link[^4 .. ^1] in [NativeString".mp3", ".oga", ".ogg", ".wav"]) or
-      (link.len >= 5 and link[^5 .. ^1] == ".flac"):
+    elif (firstUrl.len >= 4 and firstUrl[^4 .. ^1] in [NativeString".mp3", ".oga", ".ogg", ".wav"]) or
+      (firstUrl.len >= 5 and firstUrl[^5 .. ^1] == ".flac"):
       elem.tag = audio
     if elem.tag != img:
       elem.attr("controls", "")
       var altText: NativeString
       if elem.attrs.pop("alt", altText):
         elem.content = @[newStr(altText)]
-    elem.attrEscaped("src", link)
+    if link.altUrls.len == 0:
+      elem.attrEscaped("src", link.url)
+    else:
+      var sourceAttr: NativeString
+      if elem.tag == img:
+        elem.tag = picture
+        sourceAttr = "srcset"
+      else:
+        sourceAttr = "src"
+      var i = 0
+      template addSource(u) =
+        let srcElem = newElem(source)
+        srcElem.attr(sourceAttr, u)
+        elem.content.insert(srcElem, i)
+        inc i
+      addSource(link.url)
+      for alt in link.altUrls:
+        addSource(alt)
   else:
-    elem.attrEscaped("src", link)
+    elem.attrEscaped("src", link.url)
 
-proc setLink*(parser: MarggersParser, options: static MarggersOptions, elem: MarggersElement, link: NativeString) =
+proc setLink*(parser: MarggersParser, options: static MarggersOptions, elem: MarggersElement, link: Link) =
   ## Calls `setLink` if no `setLinkHandler` callback, otherwise calls callback
   withOptions(parser, options, not options.setLinkHandler.isNil):
     options.setLinkHandler(elem, link)

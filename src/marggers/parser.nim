@@ -317,47 +317,61 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
       escaped = false
   result = (frReachedEnd, elems)
 
-proc parseLink*(parser; options; failOnNewline: bool): tuple[finished: bool, url, tip: string] =
+proc parseLink*(parser; options; failOnNewline: bool): tuple[finished: bool, link: Link] =
   # why is this 100 lines
-  type State = enum
-    recordingLink
-    waitingTitle
-    recordingTitle
-    waitingEnd
+  type State = enum waitingLink, recordingLink, waitingExtra, recordingTitle, waitingEnd
   var
     state: State
     delim: char
     escaped = false
     openparens = 1
+    urlNum = -1
+  template urlAdd(x) =
+    if urlNum < 0:
+      result.link.url.add(x)
+    else:
+      result.link.altUrls[urlNum].add(x)
   template finish(success = true) =
     result.finished = success
     return
+  result.link.url = NativeString("")
   # skip first whitespace:
   while parser.nextMatch(Whitespace - {'\n'}): discard
   for ch in parser.nextChars:
     case state
+    of waitingLink:
+      case ch
+      of Whitespace - {'\n'}: discard
+      of '\n': finish(failOnNewline)
+      else:
+        dec parser.pos
+        state = recordingLink
     of recordingLink:
       case ch
       of Whitespace - {'\n'}:
         # whitespace after link
-        state = waitingTitle
+        state = waitingExtra
       of '\n':
         finish(failOnNewline)
       of '(':
         inc openparens
-        result.url.add('(')
+        urlAdd('(')
       of ')':
         dec openparens
         if openparens == 0:
           finish()
         else:
-          result.url.add(')')
-      else: result.url.add(ch)
-    of waitingTitle:
+          urlAdd(')')
+      else: urlAdd(ch)
+    of waitingExtra:
       case ch:
       of '"', '\'', '<':
         state = recordingTitle
         delim = if ch == '<': '>' else: ch
+      of '|':
+        state = waitingLink
+        result.link.altUrls.add(NativeString(""))
+        inc urlNum
       of ')':
         finish()
       of '\n':
@@ -378,11 +392,11 @@ proc parseLink*(parser; options; failOnNewline: bool): tuple[finished: bool, url
         elif ch == '\n':
           finish(failOnNewline)
         else:
-          result.tip.add(ch)
+          result.link.tip.add(ch)
       else:
         if ch notin {'\\', delim}:
-          result.tip.add('\\')
-        result.tip.add(ch)
+          result.link.tip.add('\\')
+        result.link.tip.add(ch)
         escaped = false
     of waitingEnd:
       case ch
@@ -447,14 +461,10 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
     let initialPos = parser.pos
     parser.matchNext():
     of '(':
-      let (linkWorked, link, tip) = parseLink(parser, options, failOnNewline = false)
+      var (linkWorked, link) = parseLink(parser, options, failOnNewline = false)
       if linkWorked:
-        let realLink = strip(
-          if link.len == 0 and textElems.len == 1 and textElems[0].isText:
-            textElems[0].str
-          else:
-            NativeString(link)
-        )
+        if link.url.len == 0 and textElems.len == 1 and textElems[0].isText:
+          link.url = strip(textElems[0].str)
         if image:
           result = MarggersElement(isText: false, tag: img)
           if secondPos - firstPos > 0:
@@ -462,9 +472,9 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
         else:
           result = MarggersElement(isText: false, tag: a)
           result.content = textElems
-        if tip.len != 0:
-          result.attrEscaped("title", NativeString(tip))
-        parser.setLink(options, result, realLink)
+        if link.tip.len != 0:
+          result.attrEscaped("title", link.tip)
+        parser.setLink(options, result, link)
         return
       else:
         parser.pos = initialPos
@@ -684,12 +694,12 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
       var refNameFailed = false
       let refName = parseReferenceName(parser, options, refNameFailed)
       if not refNameFailed and (inc parser.pos; parser.nextMatch(':')) and
-        (let (correct, link, tip) = parseLink(parser, options, failOnNewline = true);
+        (let (correct, link) = parseLink(parser, options, failOnNewline = true);
           correct): # smooth
         for el in parser.linkReferrers.getOrDefault(refName, @[]):
-          if tip.len != 0:
-            el.attrEscaped("title", NativeString(tip))
-          parser.setLink(options, el, NativeString(link.strip()))
+          if link.tip.len != 0:
+            el.attrEscaped("title", link.tip)
+          parser.setLink(options, el, link)
       else:
         parser.pos = initialPos
         addLine()

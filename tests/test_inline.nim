@@ -58,6 +58,9 @@ const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
 *   * e
 * * f
 g""": "<ul><li>a</li><ul><li>b</li><li>c</li></ul><li>d</li><ul><li>e</li><li>f</li></ul></ul><p>g</p>",
+
+  # multi source link
+  "![](img.png | img.jpg)": "<p><picture><source srcset=\"img.png\"/><source srcset=\"img.jpg\"/></picture></p>",
 }
 
 iterator inlineTests*: tuple[marggers, html: NativeString] =

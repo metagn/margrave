@@ -9,7 +9,7 @@ type
     ul, ol, li, blockquote,
     sup, sub, em, strong, pre, code, u, s,
     img, input, a,
-    video, audio,
+    picture, video, audio, source,
     otherTag
     #text
 
@@ -38,7 +38,7 @@ type
       content*: seq[MarggersElement]
         ## Inner HTML elements of an HTML element.
 
-const EmptyTags* = {noTag, br, img, input, otherTag}
+const EmptyTags* = {noTag, br, img, input, source, otherTag}
 
 when defined(js):
   func isEmpty*(tag: KnownTags): bool {.inline.} =
