@@ -9,13 +9,13 @@ func escapeHtmlChar*(ch: char): NativeString =
   else: toNativeString(ch)
 
 template withOptions*(parser: MarggersParser, compileTimeOptions: static MarggersOptions, cond, body, elseBody): untyped =
+  # the name injection here is a mess
   when (block:
     const options {.inject.} = compileTimeOptions
     cond):
     body
   else:
-    if (block:
-      let options {.inject.} = parser.options; cond):
+    if (let options {.inject.} = parser.options; cond):
       body
     else: elseBody
 

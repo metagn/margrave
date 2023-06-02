@@ -704,10 +704,11 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         parser.pos = initialPos
         addLine()
     of '|':
-      withOptions(parser, options, options.disableTextAlignExtension):
+      when options.disableTextAlignExtension:
         addLine()
-      do:
-        if not context.isNil:
+      else:
+        if parser.options.disableTextAlignExtension or
+            not context.isNil:
           addLine()
         else:
           var align: string
