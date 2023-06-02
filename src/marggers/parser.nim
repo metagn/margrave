@@ -609,7 +609,6 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         result.add rawOrNot(p, parseLine(parser, options))
     
     template addLine(rawLine: static bool = false) =
-      bind options
       addLine(parser, options, context, result, lastEmptyLine, rawLine)
 
     case parser.get()

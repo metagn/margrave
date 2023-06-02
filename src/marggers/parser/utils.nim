@@ -14,7 +14,8 @@ template withOptions*(parser: MarggersParser, compileTimeOptions: static Margger
     cond):
     body
   else:
-    if (let options {.inject.} = parser.options; cond):
+    if (block:
+      let options {.inject.} = parser.options; cond):
       body
     else: elseBody
 

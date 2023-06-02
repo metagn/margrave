@@ -60,7 +60,7 @@ type
       ## After parsing is done, if there are elements left in this table,
       ## then some references were left unset.
 
-const defaultParserOptions* = MarggersOptions(curlyNoHtmlEscape: marggersCurlyNoHtmlEscape, disableTextAlignExtension: true)
+const defaultParserOptions* = MarggersOptions(curlyNoHtmlEscape: marggersCurlyNoHtmlEscape)
 
 func initMarggersParser*(text: sink NativeString): MarggersParser {.inline.} =
   MarggersParser(str: text, pos: 0)
