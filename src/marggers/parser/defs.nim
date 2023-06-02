@@ -38,6 +38,10 @@ type
       ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
       ## 
       ## Not nil value at compile time overrides runtime value.
+    disableTextAlignExtension*: bool
+      ## Disables non-standard text align extension for paragraphs.
+      ## 
+      ## `true` value at compile time overrides runtime value.
   
   MarggersParser* {.byref.} = object
     ## A parser object.
@@ -56,7 +60,7 @@ type
       ## After parsing is done, if there are elements left in this table,
       ## then some references were left unset.
 
-const defaultParserOptions* = MarggersOptions(curlyNoHtmlEscape: marggersCurlyNoHtmlEscape)
+const defaultParserOptions* = MarggersOptions(curlyNoHtmlEscape: marggersCurlyNoHtmlEscape, disableTextAlignExtension: true)
 
 func initMarggersParser*(text: sink NativeString): MarggersParser {.inline.} =
   MarggersParser(str: text, pos: 0)

@@ -609,6 +609,7 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         result.add rawOrNot(p, parseLine(parser, options))
     
     template addLine(rawLine: static bool = false) =
+      bind options
       addLine(parser, options, context, result, lastEmptyLine, rawLine)
 
     case parser.get()
@@ -703,6 +704,21 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
       else:
         parser.pos = initialPos
         addLine()
+    of '|':
+      withOptions(parser, options, options.disableTextAlignExtension):
+        addLine()
+      do:
+        if not context.isNil:
+          addLine()
+        else:
+          var align: string
+          parser.matchNext:
+          of '<': align = "text-align:left"
+          of '>': align = "text-align:right"
+          else: align = "text-align:center"
+          let el = newElem(p, parseLine(parser, options))
+          style el, align
+          result.add(el)
     elif parser.nextMatch("```"):
       addElement(parseCodeBlock(parser, options, '`'))
     elif parser.nextMatch("~~~"):
