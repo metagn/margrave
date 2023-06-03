@@ -711,6 +711,7 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
             not context.isNil:
           addLine()
         else:
+          inc parser.pos
           var align: string
           parser.matchNext:
           of '<': align = "text-align:left"
