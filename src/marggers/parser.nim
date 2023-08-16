@@ -120,7 +120,7 @@ type
     frReachedEnd
     frFailed
 
-proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): (DelimFinishReason, seq[MarggersElement]) =
+proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): (DelimFinishReason, seq[MarggersElement]) {.gcsafe.} =
   # DelimParser
   var
     escaped = false
@@ -161,7 +161,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
           check(pat) and (parser.pos += matchLen; true)
 
       proc parseAux(tag: KnownTags, del: string, parser: var MarggersParser,
-        acceptedReasons = {frDone}): DelimFinishReason =
+        acceptedReasons = {frDone}): DelimFinishReason {.gcsafe.} =
         let currentPos = parser.pos
         let (finishReason, parsedElems) = parseDelimed(parser, options, del, singleLine)
         if finishReason in acceptedReasons:
