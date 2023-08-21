@@ -1,8 +1,8 @@
-import ../src/[marggers, marggers/common, marggers/element], dom
+import ../src/[margrave, margrave/common, margrave/element], dom
 
-proc convertMarggers(text: NativeString): NativeString =
+proc convertMargrave(text: NativeString): NativeString =
   result = ""
-  for elem in parseMarggers(text):
+  for elem in parseMargrave(text):
     result.add(toNativeString(elem))
     result.add(NativeString("\n"))
 
@@ -11,12 +11,12 @@ proc input(): cstring =
 
 proc convert() {.exportc.} =
   let input = input()
-  let output = convertMarggers(input)
+  let output = convertMargrave(input)
   getElementById("output").innerHTML = output
 
 proc convertToSource() {.exportc.} =
   let input = input()
-  let output = convertMarggers(input)
+  let output = convertMargrave(input)
   let sourceBlock = document.createElement("pre")
   sourceBlock.textContent = output
   let outputElement = getElementById("output")
@@ -29,7 +29,7 @@ proc filename(): cstring =
 
 proc download() {.exportc.} =
   let input = input()
-  let output = convertMarggers(input)
+  let output = convertMargrave(input)
 
   proc blobHtml(str: cstring): Blob {.importjs: "new Blob([#], {type: 'text/html'})", constructor.}
   proc createUrl(blob: Blob): cstring {.importc: "window.URL.createObjectURL".}

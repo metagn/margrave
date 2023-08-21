@@ -1,7 +1,7 @@
-import module_bridge, marggers
+import module_bridge, margrave
 
 # this behaves weird in nimscript, wrong strings are randomly matched together:
-const inlineTestTable*: seq[tuple[marggers, html: string]] = @{
+const inlineTestTable*: seq[tuple[margrave, html: string]] = @{
   "To escape use \\\\":
     "<p>To escape use \\</p>",
   "# Heading":
@@ -63,7 +63,7 @@ g""": "<ul><li>a</li><ul><li>b</li><li>c</li></ul><li>d</li><ul><li>e</li><li>f<
   "![](img.png | img.jpg)": "<p><picture><source srcset=\"img.png\"/><source srcset=\"img.jpg\"/></picture></p>",
 }
 
-iterator inlineTests*: tuple[marggers, html: NativeString] =
+iterator inlineTests*: tuple[margrave, html: NativeString] =
   when defined(nimscript): # other branch gives sigsegv
     for x in inlineTestTable.items:
       yield x
@@ -73,7 +73,7 @@ iterator inlineTests*: tuple[marggers, html: NativeString] =
 
 runTests:
   test "do inline tests":
-    for marggers, html in inlineTests():
-      checkpoint("marggers input: " & $marggers)
+    for margrave, html in inlineTests():
+      checkpoint("margrave input: " & $margrave)
       checkpoint("html output: " & $html)
-      check becomes(marggers, html)
+      check becomes(margrave, html)

@@ -6,7 +6,7 @@ type
     tip*: NativeString
     altUrls*: seq[NativeString]
 
-  MarggersOptions* {.byref.} = object
+  MargraveOptions* {.byref.} = object
     curlyNoHtmlEscape*: bool
       ## Define this to disable HTML escaping inside curly brackets
       ## (normally only formatting is disabled).
@@ -25,14 +25,14 @@ type
       ## Not nil value at compile time overrides runtime value.
       ## 
       ## See `singlexml.parseXml <singlexml.html#parseXml,string,int>`_.
-    codeBlockLanguageHandler*: proc (codeBlock: MarggersElement, language: NativeString) {.nimcall, gcsafe.}
+    codeBlockLanguageHandler*: proc (codeBlock: MargraveElement, language: NativeString) {.nimcall, gcsafe.}
       ## Callback to use when a code block has a language attached.
       ## `codeBlock` is modifiable.
       ## 
       ## If nil, any language name will be passed directly to the code block.
       ## 
       ## Not nil value at compile time overrides runtime value.
-    setLinkHandler*: proc (element: MarggersElement, link: Link) {.nimcall, gcsafe.}
+    setLinkHandler*: proc (element: MargraveElement, link: Link) {.nimcall, gcsafe.}
       ## Handles when an element gets a link. `element` is modifiable.
       ## 
       ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
@@ -43,24 +43,24 @@ type
       ## 
       ## `true` value at compile time overrides runtime value.
   
-  MarggersParser* {.byref.} = object
+  MargraveParser* {.byref.} = object
     ## A parser object.
-    options*: MarggersOptions
+    options*: MargraveOptions
       ## Runtime options for the parser.
       ## Overriden by compile time options.
     str*: NativeString # would be openarray[char] if cstring was compatible
     pos*: int
-    contextStack*: seq[MarggersElement]
+    contextStack*: seq[MargraveElement]
       ## Stack of current top level contexts,
       ## like lists or blockquotes.
-    linkReferrers*: Table[NativeString, seq[MarggersElement]]
+    linkReferrers*: Table[NativeString, seq[MargraveElement]]
       ## Table of link references to elements that use the reference.
       ## During parsing, when a reference link is found, it will modify
       ## elements that use the reference and add them the link.
       ## After parsing is done, if there are elements left in this table,
       ## then some references were left unset.
 
-const defaultParserOptions* = MarggersOptions(curlyNoHtmlEscape: marggersCurlyNoHtmlEscape)
+const defaultParserOptions* = MargraveOptions(curlyNoHtmlEscape: margraveCurlyNoHtmlEscape)
 
-func initMarggersParser*(text: sink NativeString): MarggersParser {.inline.} =
-  MarggersParser(str: text, pos: 0)
+func initMargraveParser*(text: sink NativeString): MargraveParser {.inline.} =
+  MargraveParser(str: text, pos: 0)

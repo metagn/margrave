@@ -8,7 +8,7 @@ func escapeHtmlChar*(ch: char): NativeString =
   of '&': NativeString("&amp;")
   else: toNativeString(ch)
 
-template withOptions*(parser: MarggersParser, compileTimeOptions: static MarggersOptions, cond, body, elseBody): untyped =
+template withOptions*(parser: MargraveParser, compileTimeOptions: static MargraveOptions, cond, body, elseBody): untyped =
   # the name injection here is a mess
   when (block:
     const options {.inject.} = compileTimeOptions
@@ -19,10 +19,10 @@ template withOptions*(parser: MarggersParser, compileTimeOptions: static Margger
       body
     else: elseBody
 
-template withOptions*(parser: MarggersParser, compileTimeOptions: static MarggersOptions, cond, body): untyped =
+template withOptions*(parser: MargraveParser, compileTimeOptions: static MargraveOptions, cond, body): untyped =
   withOptions(parser, compileTimeOptions, cond, body): discard
 
-proc setLinkDefault*(elem: MarggersElement, link: Link) =
+proc setLinkDefault*(elem: MargraveElement, link: Link) =
   ## Sets element link.
   ## 
   ## If `elem` has tag `a`, sets the `href` attribute to `link`.
@@ -68,49 +68,49 @@ proc setLinkDefault*(elem: MarggersElement, link: Link) =
   else:
     elem.attrEscaped("src", link.url)
 
-proc setLink*(parser: MarggersParser, options: static MarggersOptions, elem: MarggersElement, link: Link) =
+proc setLink*(parser: MargraveParser, options: static MargraveOptions, elem: MargraveElement, link: Link) =
   ## Calls `setLink` if no `setLinkHandler` callback, otherwise calls callback
   withOptions(parser, options, not options.setLinkHandler.isNil):
     options.setLinkHandler(elem, link)
   do:
     setLinkDefault(elem, link)
 
-proc addNewline*(parser: MarggersParser, options: static MarggersOptions, elem: MarggersElement | seq[MarggersElement]) =
+proc addNewline*(parser: MargraveParser, options: static MargraveOptions, elem: MargraveElement | seq[MargraveElement]) =
   withOptions(parser, options, options.insertLineBreaks):
     elem.add(newElem(br))
   do:
     elem.add("\n")
 
-template get*(parser: MarggersParser, offset: int = 0): char =
+template get*(parser: MargraveParser, offset: int = 0): char =
   parser.str[parser.pos + offset]
 
-template get*(parser: MarggersParser, offset: int = 0, len: int): NativeString =
+template get*(parser: MargraveParser, offset: int = 0, len: int): NativeString =
   parser.str[parser.pos + offset ..< parser.pos + offset + len]
 
-iterator nextChars*(parser: var MarggersParser): char =
+iterator nextChars*(parser: var MargraveParser): char =
   while parser.pos < parser.str.len:
     yield parser.get()
     inc parser.pos
 
-func anyNext*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func anyNext*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   parser.pos + offset < parser.str.len
 
-func anyPrev*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func anyPrev*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   parser.pos + offset - 1 >= 0
 
-template noNext*(parser: MarggersParser, offset: int = 0): bool =
+template noNext*(parser: MargraveParser, offset: int = 0): bool =
   not anyNext(parser, offset)
 
-template noPrev*(parser: MarggersParser, offset: int = 0): bool =
+template noPrev*(parser: MargraveParser, offset: int = 0): bool =
   not anyPrev(parser, offset)
 
-func peekMatch*(parser: MarggersParser, pat: char, offset: int = 0): bool {.inline.} =
+func peekMatch*(parser: MargraveParser, pat: char, offset: int = 0): bool {.inline.} =
   parser.anyNext(offset) and parser.get(offset) == pat
 
-func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0): bool {.inline.} =
+func peekMatch*(parser: MargraveParser, pat: set[char], offset: int = 0): bool {.inline.} =
   parser.anyNext(offset) and parser.get(offset) in pat
 
-func peekMatch*(parser: MarggersParser, pat: char, offset: int = 0, len: Natural): bool {.inline.} =
+func peekMatch*(parser: MargraveParser, pat: char, offset: int = 0, len: Natural): bool {.inline.} =
   if parser.anyNext(offset + len - 1):
     for i in 0 ..< len:
       if parser.get(offset = offset + i) != pat:
@@ -119,7 +119,7 @@ func peekMatch*(parser: MarggersParser, pat: char, offset: int = 0, len: Natural
   else:
     false
 
-func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0, len: Natural): bool {.inline.} =
+func peekMatch*(parser: MargraveParser, pat: set[char], offset: int = 0, len: Natural): bool {.inline.} =
   if parser.anyNext(offset + len - 1):
     for i in 0 ..< len:
       if parser.get(offset = offset + i) notin pat:
@@ -128,66 +128,66 @@ func peekMatch*(parser: MarggersParser, pat: set[char], offset: int = 0, len: Na
   else:
     false
 
-func peekMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool {.inline.} =
+func peekMatch*(parser: MargraveParser, pat: string, offset: int = 0): bool {.inline.} =
   parser.anyNext(offset + pat.len - 1) and parser.get(offset, pat.len) == pat
 
-func peekMatch*(parser: MarggersParser, pat: openarray[string], offset: int = 0): bool {.inline.} =
+func peekMatch*(parser: MargraveParser, pat: openarray[string], offset: int = 0): bool {.inline.} =
   result = false
   for p in pat:
     if parser.peekMatch(p, offset):
       return true
 
-func peekPrevMatch*(parser: MarggersParser, pat: char | set[char], offset: int = 0): bool {.inline.} =
+func peekPrevMatch*(parser: MargraveParser, pat: char | set[char], offset: int = 0): bool {.inline.} =
   parser.anyPrev(offset) and parser.peekMatch(pat, offset = offset - 1)
 
-func peekPrevMatch*(parser: MarggersParser, pat: string, offset: int = 0): bool {.inline.} =
+func peekPrevMatch*(parser: MargraveParser, pat: string, offset: int = 0): bool {.inline.} =
   parser.anyPrev(offset - pat.len) and parser.peekMatch(pat, offset = offset - pat.len)
       
-func prevWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func prevWhitespace*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   parser.noPrev(offset) or parser.peekPrevMatch(Whitespace, offset)
 
-func nextWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func nextWhitespace*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   parser.noNext(offset) or parser.peekMatch(Whitespace, offset = offset + 1)
 
-func surroundedWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func surroundedWhitespace*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   parser.prevWhitespace(offset) and parser.nextWhitespace(offset)
 
-func onlyPrevWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func onlyPrevWhitespace*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   parser.prevWhitespace(offset) and not parser.nextWhitespace(offset)
 
-func onlyNextWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func onlyNextWhitespace*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   not parser.prevWhitespace(offset) and parser.nextWhitespace(offset)
 
-func noAdjacentWhitespace*(parser: MarggersParser, offset: int = 0): bool {.inline.} =
+func noAdjacentWhitespace*(parser: MargraveParser, offset: int = 0): bool {.inline.} =
   not parser.prevWhitespace(offset) and not parser.nextWhitespace(offset)
 
-func nextMatch*(parser: var MarggersParser, pat: char, offset: int = 0): bool =
+func nextMatch*(parser: var MargraveParser, pat: char, offset: int = 0): bool =
   result = peekMatch(parser, pat, offset)
   if result: parser.pos += offset + 1
 
-func nextMatch*(parser: var MarggersParser, pat: set[char], offset: int = 0): bool =
+func nextMatch*(parser: var MargraveParser, pat: set[char], offset: int = 0): bool =
   result = peekMatch(parser, pat, offset)
   if result: parser.pos += offset + 1
 
-func nextMatch*(parser: var MarggersParser, pat: char, offset: int = 0, len: int): bool =
+func nextMatch*(parser: var MargraveParser, pat: char, offset: int = 0, len: int): bool =
   result = peekMatch(parser, pat, offset, len)
   if result: parser.pos += offset + len
 
-func nextMatch*(parser: var MarggersParser, pat: set[char], offset: int = 0, len: int): bool =
+func nextMatch*(parser: var MargraveParser, pat: set[char], offset: int = 0, len: int): bool =
   result = peekMatch(parser, pat, offset, len)
   if result: parser.pos += offset + len
 
-func nextMatch*(parser: var MarggersParser, pat: string, offset: int = 0): bool =
+func nextMatch*(parser: var MargraveParser, pat: string, offset: int = 0): bool =
   result = peekMatch(parser, pat, offset)
   if result: parser.pos += offset + pat.len
 
-func nextMatch*(parser: var MarggersParser, pat: openarray[string], offset: int = 0): bool =
+func nextMatch*(parser: var MargraveParser, pat: openarray[string], offset: int = 0): bool =
   result = false
   for p in pat:
     if parser.nextMatch(p, offset):
       return true
 
-macro matchNext*(parser: var MarggersParser, branches: varargs[untyped]) =
+macro matchNext*(parser: var MargraveParser, branches: varargs[untyped]) =
   result = newTree(nnkIfExpr)
   for b in branches:
     case b.kind
@@ -206,16 +206,16 @@ macro matchNext*(parser: var MarggersParser, branches: varargs[untyped]) =
     else:
       error("invalid branch for matching parser nextMatch", b)
 
-type MarggersParserVarMatcher* = distinct var MarggersParser
+type MargraveParserVarMatcher* = distinct var MargraveParser
 
-template nextMatch*(parser: var MarggersParser): MarggersParserVarMatcher =
-  MarggersParserVarMatcher(parser)
+template nextMatch*(parser: var MargraveParser): MargraveParserVarMatcher =
+  MargraveParserVarMatcher(parser)
 
-macro match*(parserMatcher: MarggersParserVarMatcher): untyped =
-  let parser = newCall(bindSym"MarggersParser", parserMatcher[0])
+macro match*(parserMatcher: MargraveParserVarMatcher): untyped =
+  let parser = newCall(bindSym"MargraveParser", parserMatcher[0])
   result = newCall(bindSym"matchNext", parser)
   for i in 1 ..< parserMatcher.len:
     result.add(parserMatcher[i])
 
-template `case`*(parserMatcher: MarggersParserVarMatcher): untyped =
+template `case`*(parserMatcher: MargraveParserVarMatcher): untyped =
   match(parserMatcher)

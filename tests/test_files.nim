@@ -1,7 +1,7 @@
-import module_bridge, marggers, strutils
+import module_bridge, margrave, strutils
 
 proc joinedParse*(str: string): string =
-  for p in str.parseMarggers:
+  for p in str.parseMargrave:
     result.add($p)
     result.add("\r\n")
 

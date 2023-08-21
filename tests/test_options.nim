@@ -1,9 +1,9 @@
-import module_bridge, marggers, strutils
+import module_bridge, margrave, strutils
 
 test "Raw curly options":
   const
-    defaultOpts = MarggersOptions()
-    testOpts = MarggersOptions(curlyNoHtmlEscape: true)
+    defaultOpts = MargraveOptions()
+    testOpts = MargraveOptions(curlyNoHtmlEscape: true)
 
   const
     text: NativeString = "{ < }"
@@ -11,10 +11,10 @@ test "Raw curly options":
     testResult: NativeString = "<p> < </p>"
 
   var
-    allDefault = MarggersParser(options: defaultOpts, str: text)
-    ctDefault = MarggersParser(options: testOpts, str: text)
-    allTest = MarggersParser(options: testOpts, str: text)
-    ctTest = MarggersParser(options: defaultOpts, str: text)
+    allDefault = MargraveParser(options: defaultOpts, str: text)
+    ctDefault = MargraveParser(options: testOpts, str: text)
+    allTest = MargraveParser(options: testOpts, str: text)
+    ctTest = MargraveParser(options: defaultOpts, str: text)
   
   check:
     becomes allDefault, defaultResult, defaultOpts
@@ -35,4 +35,4 @@ f
 g"""
   check:
     becomes control, "<p>a\nb</p><p>c\nd\ne</p><p>f</p><p>g</p>"
-    becomes control, "<p>a<br/>b</p><p>c<br/>d<br/>e</p><p>f</p><p>g</p>", MarggersOptions(insertLineBreaks: true)
+    becomes control, "<p>a<br/>b</p><p>c<br/>d<br/>e</p><p>f</p><p>g</p>", MargraveOptions(insertLineBreaks: true)

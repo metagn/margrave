@@ -13,7 +13,7 @@ type
     otherTag
     #text
 
-  MarggersElement* {.acyclic.} = ref object
+  MargraveElement* {.acyclic.} = ref object
     ## An individual node.
     ## 
     ## Can be text, or an HTML element.
@@ -35,7 +35,7 @@ type
         ## with the `emptyTag` attribute.
       attrs*: OrderedTable[NativeString, NativeString]
         ## Attributes of an HTML element.
-      content*: seq[MarggersElement]
+      content*: seq[MargraveElement]
         ## Inner HTML elements of an HTML element.
 
 const EmptyTags* = {noTag, br, img, input, source, otherTag}
@@ -51,31 +51,31 @@ else:
     ## Returns true if `tag` is an empty tag, i.e. it has no ending tag.
     tag in EmptyTags
 
-func newStr*(s: NativeString): MarggersElement =
+func newStr*(s: NativeString): MargraveElement =
   ## Creates a new text node with text `s`.
-  MarggersElement(isText: true, str: s)
+  MargraveElement(isText: true, str: s)
 
-func newElem*(tag: KnownTags, content: seq[MarggersElement] = @[]): MarggersElement =
+func newElem*(tag: KnownTags, content: seq[MargraveElement] = @[]): MargraveElement =
   ## Creates a new element node with tag `tag` and content nodes `content`.
-  MarggersElement(isText: false, tag: tag, content: content)
+  MargraveElement(isText: false, tag: tag, content: content)
 
-func paragraphIfText*(elem: MarggersElement): MarggersElement =
+func paragraphIfText*(elem: MargraveElement): MargraveElement =
   ## If `elem` is a text node, turns it into a <p> element.
   ## Otherwise returns `elem`.
   if elem.isText:
-    MarggersElement(isText: false, tag: p, content: @[elem])
+    MargraveElement(isText: false, tag: p, content: @[elem])
   else:
     elem
 
-proc attr*(elem: MarggersElement, key: NativeString): NativeString =
+proc attr*(elem: MargraveElement, key: NativeString): NativeString =
   ## Gets attribute of element
   elem.attrs[key]
 
-proc attr*(elem: MarggersElement, key, val: NativeString) =
+proc attr*(elem: MargraveElement, key, val: NativeString) =
   ## Adds attribute to element
   elem.attrs[key] = val
 
-proc attrEscaped*(elem: MarggersElement, key, val: NativeString) =
+proc attrEscaped*(elem: MargraveElement, key, val: NativeString) =
   ## Adds attribute to element escaped
   var esc =
     when NativeString is string:
@@ -87,48 +87,48 @@ proc attrEscaped*(elem: MarggersElement, key, val: NativeString) =
     else: esc.add v
   elem.attr(key, esc)
 
-proc hasAttr*(elem: MarggersElement, key: NativeString): bool =
+proc hasAttr*(elem: MargraveElement, key: NativeString): bool =
   ## Checks if element has attribute
   elem.attrs.hasKey(key)
 
-proc delAttr*(elem: MarggersElement, key: NativeString) =
+proc delAttr*(elem: MargraveElement, key: NativeString) =
   ## Deletes attribute of element
   elem.attrs.del(key)
 
-proc style*(elem: MarggersElement, style: NativeString) =
+proc style*(elem: MargraveElement, style: NativeString) =
   ## Adds style to element
   elem.attr("style", style)
 
-func `[]`*(elem: MarggersElement, i: int): MarggersElement =
+func `[]`*(elem: MargraveElement, i: int): MargraveElement =
   ## Indexes `elem.content`.
   elem.content[i]
 
-func `[]`*(elem: MarggersElement, i: BackwardsIndex): MarggersElement =
+func `[]`*(elem: MargraveElement, i: BackwardsIndex): MargraveElement =
   ## Indexes `elem.content`.
   elem.content[i]
 
-func `[]=`*(elem: MarggersElement, i: int, el: MarggersElement) =
+func `[]=`*(elem: MargraveElement, i: int, el: MargraveElement) =
   ## Indexes `elem.content`.
   elem.content[i] = el
 
-func `[]=`*(elem: MarggersElement, i: BackwardsIndex, el: MarggersElement) =
+func `[]=`*(elem: MargraveElement, i: BackwardsIndex, el: MargraveElement) =
   ## Indexes `elem.content`.
   elem.content[i] = el
 
-func add*(elem, cont: MarggersElement) =
+func add*(elem, cont: MargraveElement) =
   ## Adds to `elem.content`.
   # was previously template, this broke vM
   elem.content.add(cont)
 
-func add*(elem: MarggersElement, cont: seq[MarggersElement]) =
+func add*(elem: MargraveElement, cont: seq[MargraveElement]) =
   ## Appends nodes to `elem.content`.
   elem.content.add(cont)
 
-func add*(elem: MarggersElement, str: NativeString) =
+func add*(elem: MargraveElement, str: NativeString) =
   ## Adds a text node to `elem.content`.
   elem.content.add(newStr(str))
 
-func toNativeString*(elem: MarggersElement): NativeString =
+func toNativeString*(elem: MargraveElement): NativeString =
   if elem.isText:
     result = elem.str
   else:
@@ -169,10 +169,10 @@ func toNativeString*(elem: MarggersElement): NativeString =
       result.add(tag)
       result.add('>')
 
-func `$`*(elem: MarggersElement): string =
-  ## Outputs a marggers element as HTML.
+func `$`*(elem: MargraveElement): string =
+  ## Outputs a margrave element as HTML.
   $toNativeString(elem)
 
-func toCstring*(elem: MarggersElement): cstring =
-  ## Outputs a marggers element as HTML as a cstring, mostly for JS.
+func toCstring*(elem: MargraveElement): cstring =
+  ## Outputs a margrave element as HTML as a cstring, mostly for JS.
   cstring(toNativeString(elem))

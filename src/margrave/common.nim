@@ -1,13 +1,13 @@
 const
-  marggersNoDefaultHtmlHandler* {.booldefine.} = false
+  margraveNoDefaultHtmlHandler* {.booldefine.} = false
     ## Define this to disable inline HTML at compile time completely,
     ## to circumvent the standard library XML parser dependency.
-    ## This is overriden by `MarggersParser.inlineHtmlHandler`.
-  marggersCurlyNoHtmlEscape* {.booldefine.} = false
-    ## The default compile time value of `MarggersOptions.curlyNoHtmlEscape`.
-  marggersSingleLineStaticBool* {.booldefine.} = false
+    ## This is overriden by `MargraveParser.inlineHtmlHandler`.
+  margraveCurlyNoHtmlEscape* {.booldefine.} = false
+    ## The default compile time value of `MargraveOptions.curlyNoHtmlEscape`.
+  margraveSingleLineStaticBool* {.booldefine.} = false
     ## Possible minor optimization. Not guaranteed to be faster.
-  marggersDelimedUseSubstrs* {.booldefine.} = false
+  margraveDelimedUseSubstrs* {.booldefine.} = false
     ## Possible minor optimization. Not guaranteed to be faster.
 
 when defined(js) and not defined(nimdoc):

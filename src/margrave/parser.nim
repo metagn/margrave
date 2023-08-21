@@ -1,24 +1,24 @@
 import strutils, tables
 import ./common, ./element, parser/[defs, utils]
 
-when not marggersNoDefaultHtmlHandler:
+when not margraveNoDefaultHtmlHandler:
   import ./singlexml
 
-when marggersSingleLineStaticBool:
+when margraveSingleLineStaticBool:
   type SingleLineBool = static bool
 else:
   type SingleLineBool = bool
 
 using
-  parser: var MarggersParser
-  options: static MarggersOptions
+  parser: var MargraveParser
+  options: static MargraveOptions
 
-proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): MarggersElement
+proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): MargraveElement
 
 proc parseCurly*(parser; options): NativeString =
   ## Parses a curly bracket element.
   ## 
-  ## If `-d:marggersCurlyNoHtmlEscape` is defined, initial `!` characters
+  ## If `-d:margraveCurlyNoHtmlEscape` is defined, initial `!` characters
   ## are ignored and no HTML chars are escaped.
   result = ""
   when options.curlyNoHtmlEscape:
@@ -107,7 +107,7 @@ proc parseCodeBlockStr*(parser; options; delimChar: char): tuple[language, code:
         else: toNativeString ch
       )
 
-proc parseCodeBlock*(parser; options; delimChar: char): MarggersElement {.inline.} =
+proc parseCodeBlock*(parser; options; delimChar: char): MargraveElement {.inline.} =
   let str = parseCodeBlockStr(parser, options, delimChar)
   result = newElem(pre, @[newStr(str.code)])
   withOptions(parser, options, not options.codeBlockLanguageHandler.isNil):
@@ -120,7 +120,7 @@ type
     frReachedEnd
     frFailed
 
-proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): (DelimFinishReason, seq[MarggersElement]) {.gcsafe.} =
+proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): (DelimFinishReason, seq[MargraveElement]) {.gcsafe.} =
   # DelimParser
   var
     escaped = false
@@ -134,11 +134,11 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
   template add(s: string | cstring | char) =
     lastStr.str.add(s)
   
-  template add(elem: MarggersElement) =
+  template add(elem: MargraveElement) =
     elems.add(elem)
     refreshStr()
   
-  template add(newElems: seq[MarggersElement]) =
+  template add(newElems: seq[MargraveElement]) =
     elems.add(newElems)
     refreshStr()
   
@@ -147,7 +147,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
     if not escaped:
       let initialPos = parser.pos
 
-      when marggersDelimedUseSubstrs:
+      when margraveDelimedUseSubstrs:
         var matchLen: int
         let maxIndexAfter3 = min(parser.pos + 3, parser.str.len - 1)
         var substrs: array[4, NativeString]
@@ -157,10 +157,10 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         template check(s: string): bool =
           substrs[s.len - 1] == s and (matchLen = s.len; true)
 
-        template nextMatch(parser: var MarggersParser, pat: string): bool =
+        template nextMatch(parser: var MargraveParser, pat: string): bool =
           check(pat) and (parser.pos += matchLen; true)
 
-      proc parseAux(tag: KnownTags, del: string, parser: var MarggersParser,
+      proc parseAux(tag: KnownTags, del: string, parser: var MargraveParser,
         acceptedReasons = {frDone}): DelimFinishReason {.gcsafe.} =
         let currentPos = parser.pos
         let (finishReason, parsedElems) = parseDelimed(parser, options, del, singleLine)
@@ -177,7 +177,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         if reason in {frFailed, frReachedEnd}:
           return (reason, elems)
 
-      proc bracket(image: bool, parser: var MarggersParser): DelimFinishReason =
+      proc bracket(image: bool, parser: var MargraveParser): DelimFinishReason =
         let elem = parseBracket(parser, options, image, singleLine)
         if elem.tag == noTag:
           add(if image: NativeString"![" else: NativeString"[")
@@ -239,7 +239,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
 
       matchNext parser:
       elif (
-        when marggersSingleLineStaticBool:
+        when margraveSingleLineStaticBool:
           when singleLine: parser.nextMatch("\r\n") or parser.nextMatch("\n")
           else: parser.nextMatch("\r\n\r\n") or parser.nextMatch("\n\n")
         else:
@@ -293,7 +293,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         withOptions(parser, options, not options.inlineHtmlHandler.isNil):
           (change, pos) = options.inlineHtmlHandler(parser.str, parser.pos)
         do:
-          (change, pos) = when marggersNoDefaultHtmlHandler:
+          (change, pos) = when margraveNoDefaultHtmlHandler:
             (false, 0)
           else:
             parseXml($parser.str, parser.pos)
@@ -442,7 +442,7 @@ proc parseReferenceName*(parser; options; failed: var bool): NativeString =
       escaped = false
   failed = true
 
-proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): MarggersElement =
+proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): MargraveElement =
   let canBeSub = not image and not parser.prevWhitespace(offset = -1)
   let firstPos = parser.pos
   let (textWorked, textElems) = parseDelimed(parser, options, "]", singleLine)
@@ -466,11 +466,11 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
         if link.url.len == 0 and textElems.len == 1 and textElems[0].isText:
           link.url = strip(textElems[0].str)
         if image:
-          result = MarggersElement(isText: false, tag: img)
+          result = MargraveElement(isText: false, tag: img)
           if secondPos - firstPos > 0:
             result.attrEscaped("alt", parser.str[firstPos..secondPos])
         else:
-          result = MarggersElement(isText: false, tag: a)
+          result = MargraveElement(isText: false, tag: a)
           result.content = textElems
         if link.tip.len != 0:
           result.attrEscaped("title", link.tip)
@@ -485,7 +485,7 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
         parser.pos = initialPos
       else:
         if refName.len == 0: refName = parser.str[firstPos..secondPos]
-        result = MarggersElement(isText: false)
+        result = MargraveElement(isText: false)
         if image:
           result.tag = img
           if secondPos - firstPos > 0:
@@ -509,15 +509,15 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
     if checkMark == 2:
       result.attr("checked", "")
 
-proc parseInline*(parser; options; singleLine: SingleLineBool): seq[MarggersElement] {.inline.} =
+proc parseInline*(parser; options; singleLine: SingleLineBool): seq[MargraveElement] {.inline.} =
   let (finishReason, elems) = parseDelimed(parser, options, "", singleLine)
   assert finishReason != frFailed
   result = elems
 
-template parseSingleLine*(parser; options): seq[MarggersElement] =
+template parseSingleLine*(parser; options): seq[MargraveElement] =
   parseInline(parser, options, singleLine = true)
 
-template parseLine*(parser; options): seq[MarggersElement] =
+template parseLine*(parser; options): seq[MargraveElement] =
   parseInline(parser, options, singleLine = false)
 
 const
@@ -537,10 +537,10 @@ proc parseId*(parser; startChar: char): NativeString =
   while (let ch = parser.get(); parser.nextMatch(LegalId)): result.add(ch)
   discard parser.nextMatch(idDelim)
 
-proc parseTopLevel*(parser; options): seq[MarggersElement] =
+proc parseTopLevel*(parser; options): seq[MargraveElement] =
   var lastEmptyLine = false
   for firstCh in parser.nextChars:
-    var context: MarggersElement
+    var context: MargraveElement
     block:
       var i = 0
       while i < parser.contextStack.len:
@@ -567,24 +567,24 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
         inc i
       parser.contextStack.setLen(i)
 
-    template addElement(elem: MarggersElement): untyped =
+    template addElement(elem: MargraveElement): untyped =
       let el = elem
       if not context.isNil:
         context.add(el)
       else:
         result.add(el)
     
-    template addContext(elem: MarggersElement): untyped =
+    template addContext(elem: MargraveElement): untyped =
       let el = elem
       addElement(el)
       parser.contextStack.add(el)
       context = el
     
     proc addLine(
-      parser: var MarggersParser;
-      options: static MarggersOptions;
-      context: MarggersElement;
-      result: var seq[MarggersElement];
+      parser: var MargraveParser;
+      options: static MargraveOptions;
+      context: MargraveElement;
+      result: var seq[MargraveElement];
       lastEmptyLine: bool;
       rawLine: static bool = false) {.nimcall.} =
       template rawOrNot(t, els): untyped =
@@ -732,5 +732,5 @@ proc parseTopLevel*(parser; options): seq[MarggersElement] =
     lastEmptyLine = false
 
 when isMainModule:
-  import ../marggers
-  discard parseMarggers("# hello")
+  import ../margrave
+  discard parseMargrave("# hello")

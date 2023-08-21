@@ -14,12 +14,12 @@ else:
   template write*(path, data: string) = writeFile(path, data)
 
 from strutils import strip, Whitespace
-import marggers, marggers/common
+import margrave, margrave/common
 export NativeString
 
 template becomesImpl =
   var i = 0
-  for elem in parseMarggers(marggers, options):
+  for elem in parseMargrave(margrave, options):
     let el = strip($elem, chars = Whitespace)
     while html[i] in Whitespace: inc i
     if i + el.len <= html.len and html[i ..< i + el.len] == NativeString(el):
@@ -30,8 +30,8 @@ template becomesImpl =
       return false
   result = true
 
-proc becomes*(marggers: var MarggersParser, html: NativeString, options: static MarggersOptions = defaultParserOptions): bool =
+proc becomes*(margrave: var MargraveParser, html: NativeString, options: static MargraveOptions = defaultParserOptions): bool =
   becomesImpl()
 
-proc becomes*(marggers: NativeString, html: NativeString, options: static MarggersOptions = defaultParserOptions): bool =
+proc becomes*(margrave: NativeString, html: NativeString, options: static MargraveOptions = defaultParserOptions): bool =
   becomesImpl()

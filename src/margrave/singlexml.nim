@@ -1,5 +1,5 @@
 ## Parses a single XML node using Nim's parsexml.
-## Works for JS in versions >= 1.3. `-d:marggersNoInlineHtml` to
+## Works for JS in versions >= 1.3. `-d:margraveNoInlineHtml` to
 ## not use this module in the parser.
 
 import parsexml, xmltree, streams, strtabs

@@ -1,9 +1,9 @@
-# marggers
+# margrave
 
 Tweakable parser for a dialect of markdown that generates an HTML-like
 representation, which can be converted to HTML. Not stable.
-[Try in browser](https://metagn.github.io/marggers/browser/converter.html).
-[Docs](https://metagn.github.io/marggers/docs/marggers.html)
+[Try in browser](https://metagn.github.io/margrave/browser/converter.html).
+[Docs](https://metagn.github.io/margrave/docs/margrave.html)
 
 Tested for C, JS and NimScript (so also VM).
 
