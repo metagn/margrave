@@ -109,7 +109,7 @@ proc parseCodeBlockStr*(parser; options; delimChar: char): tuple[language, code:
 
 proc parseCodeBlock*(parser; options; delimChar: char): MargraveElement {.inline.} =
   let str = parseCodeBlockStr(parser, options, delimChar)
-  result = newElem(pre, @[newStr(str.code)])
+  result = newElem(tagPreformatted, @[newStr(str.code)])
   withOptions(parser, options, not options.codeBlockLanguageHandler.isNil):
     if str.language.len != 0:
       options.codeBlockLanguageHandler(result, str.language)
@@ -179,7 +179,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
 
       proc bracket(image: bool, parser: var MargraveParser): DelimFinishReason =
         let elem = parseBracket(parser, options, image, singleLine)
-        if elem.tag == noTag:
+        if elem.tag == tagNone:
           add(if image: NativeString"![" else: NativeString"[")
           add(elem.content)
           #result = frFailed
@@ -196,7 +196,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         if parser.nextMatch("**"):
           let (finishReason, parsedElems) = parseDelimed(parser, options, "**", singleLine)
           if finishReason == frDone:
-            add(newElem(strong, parsedElems))
+            add(newElem(tagBold, parsedElems))
             #inc parser.pos
             continue
           else:
@@ -215,7 +215,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         if parser.nextMatch("__"):
           let (finishReason, parsedElems) = parseDelimed(parser, options, "__", singleLine)
           if finishReason == frDone:
-            add(newElem(u, parsedElems))
+            add(newElem(tagUnderline, parsedElems))
             #inc parser.pos
             continue
           else:
@@ -254,20 +254,20 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
       elif not singleLine and (parser.nextMatch("\r\n") or parser.nextMatch("\n")):
         dec parser.pos
         withOptions(parser, options, options.insertLineBreaks):
-          add(newElem(br))
+          add(newElem(tagLineBreak))
         do:
           add(ch)
       of "  \r\n", "  \n":
         dec parser.pos
-        add(newElem(br))
+        add(newElem(tagLineBreak))
       of "```":
         add(parseCodeBlock(parser, options, '`'))
       of "~~~":
         add(parseCodeBlock(parser, options, '~'))
-      of "^(": parse(sup, ")")
-      of "**": parse(strong, "**")
-      of "__": parse(u, "__")
-      of "~~": parse(s, "~~")
+      of "^(": parse(tagSuperscript, ")")
+      of "**": parse(tagBold, "**")
+      of "__": parse(tagUnderline, "__")
+      of "~~": parse(tagStrikethrough, "~~")
       of "![":
         let reason = bracket(image = true, parser)
         if reason in {frFailed, frReachedEnd}:
@@ -278,13 +278,13 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         let reason = bracket(image = false, parser)
         if reason in {frFailed, frReachedEnd}:
           return (reason, elems)
-      of '`': parse(code, "`")
+      of '`': parse(tagCode, "`")
       elif parser.noAdjacentWhitespace() and parser.nextMatch('^'):
-        parse(sup, " ", {frDone, frReachedEnd})
+        parse(tagSuperscript, " ", {frDone, frReachedEnd})
       elif not parser.surroundedWhitespace() and parser.nextMatch('*'):
-        parse(em, "*")
+        parse(tagItalic, "*")
       elif parser.onlyPrevWhitespace() and parser.nextMatch('_'):
-        parse(em, "_")
+        parse(tagItalic, "_")
       of '<':
         dec parser.pos
         var
@@ -449,7 +449,7 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
   inc parser.pos
   let secondPos = parser.pos - 2
   if textWorked != frDone:
-    return newElem(noTag, textElems)
+    return newElem(tagNone, textElems)
   let checkMark =
     if not image and textElems.len == 1 and textElems[0].isText and textElems[0].str.len == 1:
       case textElems[0].str[0]
@@ -466,11 +466,11 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
         if link.url.len == 0 and textElems.len == 1 and textElems[0].isText:
           link.url = strip(textElems[0].str)
         if image:
-          result = MargraveElement(isText: false, tag: img)
+          result = MargraveElement(isText: false, tag: tagImage)
           if secondPos - firstPos > 0:
             result.attrEscaped("alt", parser.str[firstPos..secondPos])
         else:
-          result = MargraveElement(isText: false, tag: a)
+          result = MargraveElement(isText: false, tag: tagLinked)
           result.content = textElems
         if link.tip.len != 0:
           result.attrEscaped("title", link.tip)
@@ -487,11 +487,11 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
         if refName.len == 0: refName = parser.str[firstPos..secondPos]
         result = MargraveElement(isText: false)
         if image:
-          result.tag = img
+          result.tag = tagImage
           if secondPos - firstPos > 0:
             result.attrEscaped("alt", parser.str[firstPos..secondPos])
         else:
-          result.tag = a
+          result.tag = tagLinked
           result.content = textElems
         parser.linkReferrers.mgetOrPut(refName, @[]).add(result)
         return
@@ -499,11 +499,11 @@ proc parseBracket*(parser; options; image: bool, singleLine: SingleLineBool): Ma
       dec parser.pos
   if image:
     # this could be used like a directive tag
-    result = newElem(noTag, textElems)
+    result = newElem(tagNone, textElems)
   elif checkMark == 0:
-    result = newElem(if canBeSub: sub else: (dec parser.pos; noTag), textElems)
+    result = newElem(if canBeSub: tagSubscript else: (dec parser.pos; tagNone), textElems)
   else:
-    result = newElem(input)
+    result = newElem(tagInput)
     result.attr("type", "checkbox")
     result.attr("disabled", "")
     if checkMark == 2:
@@ -521,7 +521,7 @@ template parseLine*(parser; options): seq[MargraveElement] =
   parseInline(parser, options, singleLine = false)
 
 const
-  SpecialLineTags* = {ul, ol, blockquote}
+  SpecialLineTags* = {tagUnorderedList, tagOrderedList, tagBlockquote}
   IdStarts* = {'(', '[', '{', ':'}
   LegalId* = {'a'..'z', 'A'..'Z', '0'..'9', '-', '_', ':', '.'}
   InlineWhitespace* = Whitespace - {'\r', '\n'}
@@ -546,11 +546,11 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
       while i < parser.contextStack.len:
         let c = parser.contextStack[i]
         case c.tag
-        of ul:
+        of tagUnorderedList:
           if parser.nextMatch({'*', '-', '+'}):
             while parser.nextMatch(InlineWhitespace): discard
           else: break
-        of ol:
+        of tagOrderedList:
           let originalPos = parser.pos
           while parser.nextMatch(Digits): discard
           if parser.nextMatch('.'):
@@ -558,7 +558,7 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
           else:
             parser.pos = originalPos
             break
-        of blockquote:
+        of tagBlockquote:
           if parser.nextMatch('>'):
             while parser.nextMatch(InlineWhitespace): discard
           else: break
@@ -594,19 +594,19 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
           newElem(t, els)
       if not context.isNil:
         case context.tag
-        of ol, ul:
-          context.add rawOrNot(li, parseSingleLine(parser, options))
-        of blockquote:
+        of tagOrderedList, tagUnorderedList:
+          context.add rawOrNot(tagListItem, parseSingleLine(parser, options))
+        of tagBlockquote:
           let c = parseSingleLine(parser, options)
           if not lastEmptyLine and context.content.len != 0 and
-            (let last = context[^1]; not last.isText and last.tag == p):
+            (let last = context[^1]; not last.isText and last.tag == tagParagraph):
             addNewline(parser, options, last)
             last.add(c)
           else:
-            context.add rawOrNot(p, c)
+            context.add rawOrNot(tagParagraph, c)
         else: discard # unreachable
       else:
-        result.add rawOrNot(p, parseLine(parser, options))
+        result.add rawOrNot(tagParagraph, parseLine(parser, options))
     
     template addLine(rawLine: static bool = false) =
       addLine(parser, options, context, result, lastEmptyLine, rawLine)
@@ -632,8 +632,8 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
       else:
         addLine()
     of '#':
-      if context.isNil or context.tag in {blockquote, p}:
-        while not context.isNil and context.tag == p:
+      if context.isNil or context.tag in {tagBlockquote, tagParagraph}:
+        while not context.isNil and context.tag == tagParagraph:
           let last = parser.contextStack.len - 1
           context = parser.contextStack[last]
           parser.contextStack.setLen(last)
@@ -641,7 +641,7 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
         var level = 1
         while level < 6 and parser.peekMatch('#', offset = level): inc level
         parser.pos += level
-        let header = newElem(KnownTags(static(h1.int - 1) + level))
+        let header = newElem(KnownTags(static(tagHeader1.int - 1) + level))
         parser.matchNext:
         of '|': style header, "text-align:center"
         of '<': style header, "text-align:left"
@@ -654,11 +654,11 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
         addLine()
     of '*', '-', '+':
       if parser.nextMatch(InlineWhitespace, offset = 1):
-        addContext newElem(ul)
+        addContext newElem(tagUnorderedList)
         addLine()
       elif parser.nextMatch(IdStarts, offset = 1):
-        let list = newElem(ul)
-        var item = newElem(li)
+        let list = newElem(tagUnorderedList)
+        var item = newElem(tagListItem)
         item.attr("id", parser.parseId(parser.get(-1)))
         item.content = parseSingleLine(parser, options)
         list.add(item)
@@ -670,8 +670,8 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
       inc parser.pos
       while parser.nextMatch(Digits): discard
       if parser.nextMatch('.'):
-        let list = newElem(ol)
-        var item = newElem(li)
+        let list = newElem(tagOrderedList)
+        var item = newElem(tagListItem)
         if (let ch = parser.get(); parser.nextMatch(IdStarts)):
           item.attr("id", parser.parseId(ch))
         item.add(parseSingleLine(parser, options))
@@ -681,7 +681,7 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
         parser.pos = originalPos
         addLine()
     of '>':
-      let quote = newElem(blockquote)
+      let quote = newElem(tagBlockquote)
       inc parser.pos
       if (let ch = parser.get(); parser.nextMatch(IdStarts)):
         quote.attr("id", parser.parseId(ch))
@@ -717,7 +717,7 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
           of '<': align = "text-align:left"
           of '>': align = "text-align:right"
           else: align = "text-align:center"
-          let el = newElem(p, parseLine(parser, options))
+          let el = newElem(tagParagraph, parseLine(parser, options))
           style el, align
           result.add(el)
     elif parser.nextMatch("```"):

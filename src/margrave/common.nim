@@ -69,5 +69,8 @@ func toCstring*[T: enum](x: T): cstring =
     for i in 1 ..< impl.len:
       let e = impl[i]
       let z = if e.kind in {nnkIdent, nnkSym}: e else: e[0]
-      result.add(newTree(nnkOfBranch, z, newAssignment(ident"result", newCall(bindSym"cstring", newLit($e)))))
+      result.add(newTree(nnkOfBranch, z,
+        newAssignment(ident"result",
+          newCall(bindSym"cstring",
+            newCall(bindSym"$", e)))))
   gen(x)

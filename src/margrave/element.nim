@@ -3,14 +3,15 @@ import ./common, tables
 type
   KnownTags* = enum
     ## Enum of tags used in this library.
-    noTag,
-    p, br,
-    h1, h2, h3, h4, h5, h6,
-    ul, ol, li, blockquote,
-    sup, sub, em, strong, pre, code, u, s,
-    img, input, a,
-    picture, video, audio, source,
-    otherTag
+    tagNone = "",
+    tagParagraph = "p", tagLineBreak = "br",
+    tagHeader1 = "h1", tagHeader2 = "h2", tagHeader3 = "h3", tagHeader4 = "h4", tagHeader5 = "h5", tagHeader6 = "h6",
+    tagUnorderedList = "ul", tagOrderedList = "ol", tagListItem = "li", tagBlockquote = "blockquote",
+    tagSuperscript = "sup", tagSubscript = "sub", tagItalic = "em", tagBold = "strong",
+    tagPreformatted = "pre", tagCode = "code", tagUnderline = "u", tagStrikethrough = "s",
+    tagImage = "img", tagInput = "input", tagLinked = "a",
+    tagPicture = "picture", tagVideo = "video", tagAudio = "audio", tagSource = "source",
+    tagOther = "unknownTag"
     #text
 
   MargraveElement* {.acyclic.} = ref object
@@ -38,7 +39,7 @@ type
       content*: seq[MargraveElement]
         ## Inner HTML elements of an HTML element.
 
-const EmptyTags* = {noTag, br, img, input, source, otherTag}
+const EmptyTags* = {tagNone, tagLineBreak, tagImage, tagInput, tagSource, tagOther}
 
 when defined(js):
   func isEmpty*(tag: KnownTags): bool {.inline.} =
@@ -63,7 +64,7 @@ func paragraphIfText*(elem: MargraveElement): MargraveElement =
   ## If `elem` is a text node, turns it into a <p> element.
   ## Otherwise returns `elem`.
   if elem.isText:
-    MargraveElement(isText: false, tag: p, content: @[elem])
+    MargraveElement(isText: false, tag: tagParagraph, content: @[elem])
   else:
     elem
 
@@ -135,8 +136,8 @@ func toNativeString*(elem: MargraveElement): NativeString =
     var empty = elem.tag.isEmpty
     var tag: NativeString
     case elem.tag
-    of noTag: discard # tag stays empty
-    of otherTag:
+    of tagNone: discard # tag stays empty
+    of tagOther:
       if elem.hasAttr("tag"):
         tag = elem.attr("tag")
         empty = elem.hasAttr("emptyTag")

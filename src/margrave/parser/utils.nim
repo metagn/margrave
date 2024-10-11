@@ -32,17 +32,17 @@ proc setLinkDefault*(elem: MargraveElement, link: Link) =
   ## an audio element; then the `src` attribute will be set to `link`.
   ## Other tags for `elem` also set the `src` attribute to `link`.
   case elem.tag
-  of a:
+  of tagLinked:
     elem.attrEscaped("href", link.url)
-  of img:
+  of tagImage:
     let firstUrl = link.url
     if (firstUrl.len >= 4 and firstUrl[^4 .. ^1] in [NativeString".mp4", ".m4v", ".mov", ".ogv"]) or
       (firstUrl.len >= 5 and firstUrl[^5 .. ^1] == ".webm"): 
-      elem.tag = video
+      elem.tag = tagVideo
     elif (firstUrl.len >= 4 and firstUrl[^4 .. ^1] in [NativeString".mp3", ".oga", ".ogg", ".wav"]) or
       (firstUrl.len >= 5 and firstUrl[^5 .. ^1] == ".flac"):
-      elem.tag = audio
-    if elem.tag != img:
+      elem.tag = tagAudio
+    if elem.tag != tagImage:
       elem.attr("controls", "")
       var altText: NativeString
       if elem.attrs.pop("alt", altText):
@@ -51,14 +51,14 @@ proc setLinkDefault*(elem: MargraveElement, link: Link) =
       elem.attrEscaped("src", link.url)
     else:
       var sourceAttr: NativeString
-      if elem.tag == img:
-        elem.tag = picture
+      if elem.tag == tagImage:
+        elem.tag = tagPicture
         sourceAttr = "srcset"
       else:
         sourceAttr = "src"
       var i = 0
       template addSource(u) =
-        let srcElem = newElem(source)
+        let srcElem = newElem(tagSource)
         srcElem.attr(sourceAttr, u)
         elem.content.insert(srcElem, i)
         inc i
@@ -77,7 +77,7 @@ proc setLink*(parser: MargraveParser, options: static MargraveOptions, elem: Mar
 
 proc addNewline*(parser: MargraveParser, options: static MargraveOptions, elem: MargraveElement | seq[MargraveElement]) =
   withOptions(parser, options, options.insertLineBreaks):
-    elem.add(newElem(br))
+    elem.add(newElem(tagLineBreak))
   do:
     elem.add("\n")
 
