@@ -38,8 +38,24 @@ type
       ## Covers []() and ![]() syntax. If nil, `setLinkDefault` is called.
       ## 
       ## Not nil value at compile time overrides runtime value.
+    disableLineEscaping*: bool
+      ## Disables escaping newlines.
+      ## 
+      ## `true` value at compile time overrides runtime value.
     disableTextAlignExtension*: bool
       ## Disables non-standard text align extension for paragraphs.
+      ## 
+      ## `true` value at compile time overrides runtime value.
+    disableCurly*: bool
+      ## Disables non-standard curly bracket extension to disable formatting.
+      ## 
+      ## `true` value at compile time overrides runtime value.
+    disableRawCurly*: bool
+      ## Disables raw HTML behavior of curly brackets with `!`.
+      ## 
+      ## `true` value at compile time overrides runtime value.
+    disableCodeFormat*: bool
+      ## Disables formatting behavior of inline code.
       ## 
       ## `true` value at compile time overrides runtime value.
   

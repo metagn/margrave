@@ -21,10 +21,10 @@ proc parseCurly*(parser; options): NativeString =
   ## If `-d:margraveCurlyNoHtmlEscape` is defined, initial `!` characters
   ## are ignored and no HTML chars are escaped.
   result = ""
-  when options.curlyNoHtmlEscape:
+  when options.curlyNoHtmlEscape or options.disableRawCurly:
     discard parser.nextMatch('!')
   else:
-    let noHtmlEscape = parser.nextMatch('!') or parser.options.curlyNoHtmlEscape
+    let noHtmlEscape = (parser.nextMatch('!') and not options.disableRawCurly) or parser.options.curlyNoHtmlEscape
   var
     opencurlys = 1
     escaped = false
@@ -120,6 +120,19 @@ type
     frReachedEnd
     frFailed
 
+proc parseCodePreformat*(parser; options; delim: string): (DelimFinishReason, MargraveElement) =
+  ## Parses an inline code element without formatting.
+  # doesnt handle lines
+  var s = ""
+  # no escaping
+  for ch in parser.nextChars:
+    if parser.nextMatch(delim):
+      dec parser.pos
+      return (frDone, newElem(tagCode, @[newStr(s)]))
+    else:
+      s.add(escapeHtmlChar(ch))
+  result = (frReachedEnd, newElem(tagCode, @[newStr(s)]))
+
 proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): (DelimFinishReason, seq[MargraveElement]) {.gcsafe.} =
   # DelimParser
   var
@@ -144,7 +157,11 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
   
   for ch in parser.nextChars:
     assert elems[^1].isText
-    if not escaped:
+    template isEscapableNewline(c: char): bool =
+      not (options.disableLineEscaping or parser.options.disableLineEscaping) and ch in {'\r', '\n'}
+    if not escaped or (ch in {' '} or isEscapableNewline(ch)):
+      if escaped:
+        add('\\')
       let initialPos = parser.pos
 
       when margraveDelimedUseSubstrs:
@@ -273,12 +290,40 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
         if reason in {frFailed, frReachedEnd}:
           return (reason, elems)
       of '{':
-        add(parseCurly(parser, options))
+        withOptions(parser, options, options.disableCurly):
+          add('{')
+        do:
+          add(parseCurly(parser, options))
       of '[':
         let reason = bracket(image = false, parser)
         if reason in {frFailed, frReachedEnd}:
           return (reason, elems)
-      of '`': parse(tagCode, "`")
+      of "``":
+        const staticOptions = options
+        withOptions(parser, options, options.disableCodeFormat):
+          let currentPos = parser.pos
+          let (finishReason, parsedElem) = parseCodePreformat(parser, staticOptions, "``")
+          if finishReason == frDone:
+            add(parsedElem)
+          else:
+            add(parser.str[initialPos ..< currentPos])
+            parser.pos = currentPos
+            dec parser.pos
+        do:
+          parse(tagCode, "``")
+      of '`':
+        const staticOptions = options
+        withOptions(parser, options, options.disableCodeFormat):
+          let currentPos = parser.pos
+          let (finishReason, parsedElem) = parseCodePreformat(parser, staticOptions, "`")
+          if finishReason == frDone:
+            add(parsedElem)
+          else:
+            add(parser.str[initialPos ..< currentPos])
+            parser.pos = currentPos
+            dec parser.pos
+        do:
+          parse(tagCode, "`")
       elif parser.noAdjacentWhitespace() and parser.nextMatch('^'):
         parse(tagSuperscript, " ", {frDone, frReachedEnd})
       elif not parser.surroundedWhitespace() and parser.nextMatch('*'):
@@ -313,6 +358,8 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
       else:
         add(ch)
     else:
+      if not (ch in {'<', '>', '&', '*', '_', '^', '`', '[', ']', '{', '}', '~', '!'} or isEscapableNewline(ch)):
+        add('\\')
       add(ch)
       escaped = false
   result = (frReachedEnd, elems)
@@ -724,7 +771,7 @@ proc parseTopLevel*(parser; options): seq[MargraveElement] =
       addElement(parseCodeBlock(parser, options, '`'))
     elif parser.nextMatch("~~~"):
       addElement(parseCodeBlock(parser, options, '~'))
-    elif parser.peekMatch("{!"):
+    elif parser.peekMatch("{!") and not (options.disableCurly or options.disableRawCurly or parser.options.disableCurly or parser.options.disableRawCurly):
       addLine(rawLine = true)
     else:
       addLine()
