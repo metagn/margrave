@@ -358,7 +358,7 @@ proc parseDelimed*(parser; options; delim: string, singleLine: SingleLineBool): 
       else:
         add(ch)
     else:
-      if not (ch in {'<', '>', '&', '*', '_', '^', '`', '[', ']', '{', '}', '~', '!'} or isEscapableNewline(ch)):
+      if not (ch in {'\\', '<', '>', '&', '*', '_', '^', '`', '[', ']', '{', '}', '~', '!'} or isEscapableNewline(ch)):
         add('\\')
       add(ch)
       escaped = false
