@@ -59,12 +59,19 @@ proc setLinkDefault*(elem: MargraveElement, link: Link) =
       var i = 0
       template addSource(u) =
         let srcElem = newElem(tagSource)
-        srcElem.attr(sourceAttr, u)
+        srcElem.attrEscaped(sourceAttr, u)
         elem.content.insert(srcElem, i)
         inc i
-      addSource(link.url)
+      if elem.tag != tagPicture:
+        addSource(link.url)
       for alt in link.altUrls:
         addSource(alt)
+      if elem.tag == tagPicture:
+        var imgElem = newElem(tagImage)
+        imgElem.attrEscaped("src", link.url)
+        var altText: NativeString
+        if elem.attrs.pop("alt", altText):
+          imgElem.attr("alt", altText)
   else:
     elem.attrEscaped("src", link.url)
 
