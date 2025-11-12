@@ -72,6 +72,7 @@ proc setLinkDefault*(elem: MargraveElement, link: Link) =
         var altText: NativeString
         if elem.attrs.pop("alt", altText):
           imgElem.attr("alt", altText)
+        elem.content.add(imgElem)
   else:
     elem.attrEscaped("src", link.url)
 
